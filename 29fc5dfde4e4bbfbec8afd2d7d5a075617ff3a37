@@ -1,0 +1,37 @@
+test/installation.test.js
+  bb0e46aaaf843eda 8,64-67,69-76,78-92
+scripts/package-release.js
+  bb0e46aaaf843eda 10-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "29fc5dfde4e4bbfbec8afd2d7d5a075617ff3a37",
+  "prompts": {
+    "bb0e46aaaf843eda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e00-df96-7390-bf75-227093e8f34e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 2,
+      "accepted_lines": 40,
+      "overriden_lines": 2,
+      "per_file_stats": {
+        "test/installation.test.js": {
+          "additions": 19,
+          "accepted_lines": 29,
+          "overriden_lines": 2
+        },
+        "scripts/package-release.js": {
+          "additions": 6,
+          "deletions": 2,
+          "accepted_lines": 11
+        }
+      }
+    }
+  }
+}
