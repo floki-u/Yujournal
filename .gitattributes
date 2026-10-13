@@ -1,0 +1,9 @@
+* text=auto eol=lf
+# Keep upstream files byte-identical to their published checksums.
+vendor/** -text -whitespace linguist-vendored
+fonts/** -text -whitespace linguist-vendored
+assets/** binary
+*.png binary
+*.webp binary
+*.ttf binary
+*.gz binary
