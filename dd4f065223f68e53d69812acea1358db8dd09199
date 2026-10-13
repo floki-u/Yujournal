@@ -1,0 +1,121 @@
+src/lib/database.js
+  bb0e46aaaf843eda 1,70,90
+test/voice.test.js
+  bb0e46aaaf843eda 1-4,6-7,9-18,21,23,25-35,38-48,50-55,59-63
+src/lib/backup.js
+  bb0e46aaaf843eda 1,87,194
+test/entry-batch.test.js
+  bb0e46aaaf843eda 1-14,16-17,19-22,25-30,32-48,74-75
+docs/SHORTCUTS.zh-CN.md
+  bb0e46aaaf843eda 1-23
+src/app.js
+  bb0e46aaaf843eda 5,9-14,16-17,76-83,86,88-90,92-95,97-100,102-111,115-116,118-127,129-136,139,141,143-171,173-179,182-183,200,205,208,223-226,253,278,414-419,424,429-431,439-440,451-454,585-595,600-603,605,607-610,618-652,655-658,661-662,664-671,673-682,684-686,690-693,695-700,702-705,707-710,712-713,715-716,719-722,944,949-958,964,966-970,972,1089,1102,1105-1107,1109-1110,1116-1121,1127-1133,1135-1143,1172-1173,1185-1201,1203,1471-1477,1505,1510-1517,1537,1539-1544,1627,1639-1640,1642,1644-1646,1691-1702,1704,1725,1748,1757,1764-1767,1777-1778,1780
+test/mobile-regression.test.js
+  bb0e46aaaf843eda 1-15,17-24,26-36,38-39,41,43-48,50-52,54-67,69-71,73-75,77-79
+src/lib/voice.js
+  bb0e46aaaf843eda 1-2,4-18,21-22,24-27,29-39,43-53,55,63-65,67-78,80,106,121,131,169-172,174-175,177-182,185-186,188-194,197,201-207,209-212,214-228,230-235,238-241
+scripts/create-shortcuts.py
+  bb0e46aaaf843eda 1-40
+src/lib/parser.js
+  bb0e46aaaf843eda 2,21,75-86,98-101,132-133,193-248,250-324,335-349
+src/lib/voice-worker.js
+  bb0e46aaaf843eda 1-10,12-18,20-23,25-32,34-39
+src/lib/quick-input.js
+  bb0e46aaaf843eda 1-11,13-17
+src/lib/ledger.js
+  bb0e46aaaf843eda 60,66-67,71-81,83-85,224-231,233-237,458
+scripts/optimize-voice-model.py
+  bb0e46aaaf843eda 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "dd4f065223f68e53d69812acea1358db8dd09199",
+  "prompts": {
+    "bb0e46aaaf843eda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e00-df96-7390-bf75-227093e8f34e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 649,
+      "total_deletions": 114,
+      "accepted_lines": 1017,
+      "overriden_lines": 165,
+      "per_file_stats": {
+        "test/voice.test.js": {
+          "additions": 14,
+          "accepted_lines": 51,
+          "overriden_lines": 12
+        },
+        "src/lib/database.js": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        "test/entry-batch.test.js": {
+          "additions": 21,
+          "accepted_lines": 45,
+          "overriden_lines": 6
+        },
+        "src/lib/quick-input.js": {
+          "additions": 5,
+          "deletions": 1,
+          "accepted_lines": 16,
+          "overriden_lines": 1
+        },
+        "src/lib/voice.js": {
+          "additions": 66,
+          "accepted_lines": 123,
+          "overriden_lines": 66
+        },
+        "src/app.js": {
+          "additions": 153,
+          "deletions": 58,
+          "accepted_lines": 364,
+          "overriden_lines": 53
+        },
+        "docs/SHORTCUTS.zh-CN.md": {
+          "additions": 23,
+          "accepted_lines": 23
+        },
+        "src/lib/voice-worker.js": {
+          "additions": 23,
+          "accepted_lines": 35,
+          "overriden_lines": 4
+        },
+        "src/lib/ledger.js": {
+          "additions": 11,
+          "accepted_lines": 31,
+          "overriden_lines": 5
+        },
+        "test/mobile-regression.test.js": {
+          "additions": 24,
+          "accepted_lines": 69,
+          "overriden_lines": 9
+        },
+        "src/lib/parser.js": {
+          "additions": 216,
+          "deletions": 49,
+          "accepted_lines": 167,
+          "overriden_lines": 9
+        },
+        "src/lib/backup.js": {
+          "additions": 3,
+          "deletions": 3,
+          "accepted_lines": 3
+        },
+        "scripts/optimize-voice-model.py": {
+          "additions": 47,
+          "accepted_lines": 47
+        },
+        "scripts/create-shortcuts.py": {
+          "additions": 40,
+          "accepted_lines": 40
+        }
+      }
+    }
+  }
+}
