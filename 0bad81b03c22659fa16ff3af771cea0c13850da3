@@ -1,0 +1,29 @@
+.gitattributes
+  bb0e46aaaf843eda 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "0bad81b03c22659fa16ff3af771cea0c13850da3",
+  "prompts": {
+    "bb0e46aaaf843eda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e00-df96-7390-bf75-227093e8f34e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0,
+      "per_file_stats": {
+        ".gitattributes": {
+          "additions": 9,
+          "accepted_lines": 9
+        }
+      }
+    }
+  }
+}
