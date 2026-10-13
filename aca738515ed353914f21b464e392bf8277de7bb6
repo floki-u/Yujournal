@@ -1,0 +1,227 @@
+.github/pull_request_template.md
+  bb0e46aaaf843eda 1-12
+docs/TESTING.md
+  bb0e46aaaf843eda 1-26
+.github/ISSUE_TEMPLATE/bug.yml
+  bb0e46aaaf843eda 1-24
+.gitignore
+  bb0e46aaaf843eda 1-17
+scripts/check.js
+  bb0e46aaaf843eda 1-9,11-16,20-31,33-40,42-51,53
+.editorconfig
+  bb0e46aaaf843eda 1-12
+README.md
+  bb0e46aaaf843eda 1-79
+docs/DEPLOYMENT.md
+  bb0e46aaaf843eda 1-31
+scripts/package-release.js
+  bb0e46aaaf843eda 1-10,12-14,18-19,23-24
+THIRD_PARTY_NOTICES.md
+  bb0e46aaaf843eda 1-5,7-14
+.github/workflows/pages.yml
+  bb0e46aaaf843eda 1-47
+.nvmrc
+  bb0e46aaaf843eda 1
+.env.example
+  bb0e46aaaf843eda 1-3
+scripts/config.js
+  bb0e46aaaf843eda 1-5,7-11
+docs/PRIVACY.md
+  bb0e46aaaf843eda 1-17
+docs/ARCHITECTURE.md
+  bb0e46aaaf843eda 1-5,7-23
+install.html
+  bb0e46aaaf843eda 1-3,7,9-16,18-19,21-26,29-31,33-37,39-41,43-46,48-51,53-58,60-62,64-66,68-69,71-81,83-85,87-88,90-93,95-102,104-105,107-113,115-155
+scripts/profile.js
+  bb0e46aaaf843eda 1-6,8,12-17,19-51,53-60
+scripts/serve.js
+  bb0e46aaaf843eda 1-17,19-35,37-43
+.prettierignore
+  bb0e46aaaf843eda 1-10
+.prettierrc.json
+  bb0e46aaaf843eda 1
+test/installation.test.js
+  bb0e46aaaf843eda 1-27,29-56,58-62
+LICENSE
+  bb0e46aaaf843eda 1-21
+scripts/build.js
+  bb0e46aaaf843eda 1-13,16-22,24-32,34-47,49
+.github/ISSUE_TEMPLATE/feature.yml
+  bb0e46aaaf843eda 1-14
+CONTRIBUTING.md
+  bb0e46aaaf843eda 1-9
+docs/INSTALL.zh-CN.md
+  bb0e46aaaf843eda 1-28,30-40
+README.zh-CN.md
+  bb0e46aaaf843eda 1-61
+CHANGELOG.md
+  bb0e46aaaf843eda 1-15
+SECURITY.md
+  bb0e46aaaf843eda 1-7
+.github/workflows/ci.yml
+  bb0e46aaaf843eda 1-22
+.github/ISSUE_TEMPLATE/config.yml
+  bb0e46aaaf843eda 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "aca738515ed353914f21b464e392bf8277de7bb6",
+  "prompts": {
+    "bb0e46aaaf843eda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e00-df96-7390-bf75-227093e8f34e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 690,
+      "total_deletions": 1,
+      "accepted_lines": 907,
+      "overriden_lines": 53,
+      "per_file_stats": {
+        "CHANGELOG.md": {
+          "additions": 15,
+          "accepted_lines": 15
+        },
+        "scripts/serve.js": {
+          "additions": 14,
+          "accepted_lines": 41,
+          "overriden_lines": 2
+        },
+        ".prettierrc.json": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        ".nvmrc": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        ".env.example": {
+          "additions": 3,
+          "accepted_lines": 3
+        },
+        "docs/ARCHITECTURE.md": {
+          "additions": 23,
+          "accepted_lines": 22,
+          "overriden_lines": 1
+        },
+        "SECURITY.md": {
+          "additions": 7,
+          "accepted_lines": 7
+        },
+        "THIRD_PARTY_NOTICES.md": {
+          "additions": 14,
+          "accepted_lines": 13,
+          "overriden_lines": 1
+        },
+        "scripts/package-release.js": {
+          "additions": 14,
+          "accepted_lines": 17,
+          "overriden_lines": 6
+        },
+        "docs/DEPLOYMENT.md": {
+          "additions": 31,
+          "accepted_lines": 31
+        },
+        ".github/ISSUE_TEMPLATE/config.yml": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "docs/TESTING.md": {
+          "additions": 26,
+          "accepted_lines": 26
+        },
+        "docs/PRIVACY.md": {
+          "additions": 17,
+          "accepted_lines": 17
+        },
+        "docs/INSTALL.zh-CN.md": {
+          "additions": 40,
+          "accepted_lines": 39,
+          "overriden_lines": 1
+        },
+        "scripts/config.js": {
+          "additions": 9,
+          "accepted_lines": 10,
+          "overriden_lines": 1
+        },
+        ".github/pull_request_template.md": {
+          "additions": 12,
+          "accepted_lines": 12
+        },
+        ".github/workflows/pages.yml": {
+          "additions": 47,
+          "accepted_lines": 47
+        },
+        ".github/ISSUE_TEMPLATE/bug.yml": {
+          "additions": 24,
+          "accepted_lines": 24
+        },
+        "LICENSE": {
+          "additions": 21,
+          "accepted_lines": 21
+        },
+        "scripts/profile.js": {
+          "additions": 49,
+          "accepted_lines": 54,
+          "overriden_lines": 5
+        },
+        "install.html": {
+          "additions": 32,
+          "accepted_lines": 131,
+          "overriden_lines": 24
+        },
+        "CONTRIBUTING.md": {
+          "additions": 9,
+          "accepted_lines": 9
+        },
+        "test/installation.test.js": {
+          "additions": 28,
+          "accepted_lines": 60,
+          "overriden_lines": 2
+        },
+        "scripts/check.js": {
+          "additions": 12,
+          "accepted_lines": 46,
+          "overriden_lines": 7
+        },
+        ".editorconfig": {
+          "additions": 12,
+          "accepted_lines": 12
+        },
+        "README.md": {
+          "additions": 79,
+          "deletions": 1,
+          "accepted_lines": 79
+        },
+        ".prettierignore": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        ".github/workflows/ci.yml": {
+          "additions": 22,
+          "accepted_lines": 22
+        },
+        "scripts/build.js": {
+          "additions": 25,
+          "accepted_lines": 44,
+          "overriden_lines": 3
+        },
+        ".gitignore": {
+          "additions": 17,
+          "accepted_lines": 17
+        },
+        "README.zh-CN.md": {
+          "additions": 61,
+          "accepted_lines": 61
+        },
+        ".github/ISSUE_TEMPLATE/feature.yml": {
+          "additions": 14,
+          "accepted_lines": 14
+        }
+      }
+    }
+  }
+}
