@@ -1,0 +1,34 @@
+{
+  "name": "yujournal",
+  "version": "0.1.0",
+  "description": "An offline-first, local-only personal ledger PWA for iPhone.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "homepage": "https://floki-u.github.io/Yujournal/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/floki-u/Yujournal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/floki-u/Yujournal/issues"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.js",
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "node scripts/build.js",
+    "profile": "node scripts/profile.js",
+    "release:pack": "node scripts/package-release.js"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "0.1.80",
+    "fake-indexeddb": "6.2.5",
+    "prettier": "3.6.2"
+  }
+}

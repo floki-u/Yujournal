@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible problem using synthetic data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not upload real payment screenshots, ledger backups, passwords or device identifiers.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include browser/iOS version and installation method; use fictional amounts.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Optional screenshots/logs with all personal information removed.

@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest an improvement consistent with local-first bookkeeping.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested behavior
+      description: Explain how this would fit offline use, privacy and the iPhone interface.

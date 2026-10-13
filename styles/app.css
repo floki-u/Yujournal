@@ -1,0 +1,184 @@
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+}
+.helper a,
+.formula a {
+  color: var(--leaf);
+  text-decoration: underline;
+}
+.button-row > .secondary {
+  flex: 1;
+}
+.error {
+  color: var(--clay);
+  padding: 12px 0;
+  font-size: 14px;
+}
+.progress-status {
+  padding: 14px;
+  background: var(--sage);
+  border-radius: 12px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.date-input {
+  min-height: 44px;
+}
+.empty .secondary {
+  margin-top: 20px;
+}
+.entry-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.entry-tabs button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--sage);
+  font-size: 13px;
+}
+.entry-tabs button.active {
+  background: var(--leaf);
+  color: var(--paper);
+}
+.confirm-grid {
+  margin-top: 18px;
+}
+.attachment-img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.receipt-actions button {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+.pending-count {
+  color: var(--clay);
+}
+.danger {
+  color: var(--clay);
+}
+.toast-action {
+  display: block;
+  color: inherit;
+  min-height: 44px;
+  text-decoration: underline;
+}
+.safety-note {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--secondary);
+  padding: 12px 0;
+}
+.offline-ready {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--leaf);
+  padding: 8px 0;
+}
+.source-meta {
+  word-break: break-word;
+}
+#sheet:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 3px;
+}
+#sheet-content {
+  overflow-wrap: anywhere;
+}
+.sheet input,
+.sheet select,
+.sheet textarea {
+  font-size: 16px;
+}
+.txn-money {
+  flex-shrink: 0;
+}
+.detail-line strong {
+  max-width: 64%;
+  overflow-wrap: anywhere;
+}
+.long-text {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.template-top > div {
+  min-width: 0;
+}
+.template-top h3 {
+  overflow-wrap: anywhere;
+}
+.template-top > strong {
+  margin-left: auto;
+  font-size: 14px;
+}
+.goal-page-card .button-row {
+  flex-wrap: wrap;
+}
+.version {
+  line-height: 1.8;
+}
+body[aria-busy='true'] #sheet button[type='submit'] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.daily-bottom .pill {
+  white-space: nowrap;
+}
+.bar-chart {
+  overflow-x: auto;
+}
+.bar-column {
+  min-width: 24px;
+}
+.report-preview-wrap canvas {
+  height: auto;
+}
+.ledger-page-info {
+  font-size: 12px;
+  color: var(--secondary);
+  text-align: center;
+  padding: 20px;
+}
+.sheet-inner .primary {
+  width: 100%;
+}
+.settings-row p {
+  line-height: 1.5;
+}
+.template-bottom {
+  flex-wrap: wrap;
+}
+.theme-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

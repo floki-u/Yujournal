@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.artifacts/
+.release/
+vendor/
+fonts/
+assets/
+install/*.mobileconfig
+package-lock.json
+LICENSE

@@ -1,0 +1,36 @@
+{
+  "id": "./",
+  "name": "Yujournal · 余记",
+  "short_name": "余记",
+  "description": "每天记一点，账目留在本机。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f8f2",
+  "theme_color": "#43694c",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "记一笔",
+      "url": "./?entry=text"
+    },
+    {
+      "name": "截图记账",
+      "url": "./?entry=ocr"
+    }
+  ]
+}

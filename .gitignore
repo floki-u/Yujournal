@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.artifacts/
+.release/
+.openai/
+.codex/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.yuji
+*.tar.gz
+*.zip
+coverage/
+qa-artifacts/
+local/
