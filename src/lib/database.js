@@ -1,4 +1,4 @@
-import { createLedger, validateLedger } from './ledger.js';
+import { createLedger, validateLedger, imageReferences } from './ledger.js';
 let dbPromise;
 const channel =
   typeof BroadcastChannel !== 'undefined'
@@ -67,7 +67,7 @@ export async function mutate(
           revision = s.revision;
         if (expectedRevision !== null && revision !== expectedRevision)
           throw Error('账本已被其他窗口更新，请重新预览导入。');
-        const priorRefs = new Set(s.transactions.flatMap((t) => t.attachmentIds));
+        const priorRefs = new Set(imageReferences(s));
         const returned = action(s);
         if (returned && typeof returned.then === 'function')
           throw Error('数据库更新必须为同步操作。');
@@ -87,7 +87,7 @@ export async function mutate(
           images.put(a);
         }
         const supplied = new Set(attachments.map((a) => a.id));
-        const refs = new Set(result.transactions.flatMap((t) => t.attachmentIds));
+        const refs = new Set(imageReferences(result));
         for (const key of refs) {
           if (supplied.has(key) || (!replaceAttachments && priorRefs.has(key))) continue;
           const check = images.get(key);

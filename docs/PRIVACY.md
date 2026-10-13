@@ -15,3 +15,11 @@ Complete `.yuji` files include records/deletions, assets, goals/events, template
 Capacity guards: 256 MiB plain backup, 32 MiB encrypted backup, 20 MiB ledger text, 2 MiB per saved image. Import validates before an atomic state/attachment commit. Full restore first generates a safety export; confirm its download is stored safely.
 
 Browsers may evict/clear local data and decide whether persistence requests succeed. Regular complete file backups provide recovery. Export before device/domain/entry-point moves, uninstalling or clearing website data.
+
+## Application voice and shortcut input
+
+Optional long-press voice uses a same-origin, locally cached Whisper-base model and WASM runtime. It requests the microphone only when the user starts recording. Audio stays in memory, stops on release/cancel/backgrounding, is decoded locally and sent only to a local Web Worker. Remote model loading and extra library caches are disabled. Original audio is not attached to transactions or backups.
+
+The screenshot shortcut uses system text extraction, copies a tagged result with `WFLocalOnly=true`, and opens a URL containing no financial text. Clipboard reads occur only from the receiver button. Different iOS entry points may use separate storage; the bridge explicitly directs users back to their established ledger rather than silently writing a second ledger.
+
+New profile-image backups should be restored using v0.2.0 or newer; older complete backups are still accepted. Model caches are not bundled into backups.

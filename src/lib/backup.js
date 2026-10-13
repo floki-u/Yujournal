@@ -1,4 +1,4 @@
-import { validateLedger } from './ledger.js';
+import { validateLedger, imageReferences } from './ledger.js';
 const MAGIC = new TextEncoder().encode('YUJI001\n'),
   MAX_FILE = 256 * 1024 * 1024,
   MAX_ENCRYPTED = 32 * 1024 * 1024;
@@ -84,7 +84,7 @@ async function key(password, salt) {
 }
 export async function exportBackup(state, attachments = [], password = '') {
   validateLedger(state);
-  const refs = new Set(state.transactions.flatMap((t) => t.attachmentIds));
+  const refs = new Set(imageReferences(state));
   const included = attachments.filter((a) => refs.has(a.id));
   if (included.length !== refs.size || new Set(included.map((a) => a.id)).size !== refs.size)
     throw Error('账本截图附件缺失，暂不能导出。');
@@ -191,7 +191,7 @@ export async function importBackup(file, password = '', nested = false) {
     }
   }
   if (at !== file.size) throw Error('备份含有未声明的数据。');
-  const refs = new Set(state.transactions.flatMap((t) => t.attachmentIds));
+  const refs = new Set(imageReferences(state));
   if (refs.size !== seen.size || [...refs].some((id) => !seen.has(id)))
     throw Error('备份截图缺失或多余。');
   return { state, attachments };

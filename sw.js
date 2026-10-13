@@ -2,7 +2,8 @@ const SCOPE = encodeURIComponent(new URL(self.registration.scope).pathname);
 const PREFIX = 'yujournal-shell-' + SCOPE + '-';
 const CORE = PREFIX + '__BUILD_HASH__',
   WORLD = 'yujournal-world-v4-' + SCOPE,
-  OCR = 'yujournal-ocr-v6-fast-874164-' + SCOPE;
+  OCR = 'yujournal-ocr-v6-fast-874164-' + SCOPE,
+  VOICE = 'yujournal-voice-base-q8-v1-' + SCOPE;
 const FILES = [
   './',
   'index.html',
@@ -27,6 +28,9 @@ const FILES = [
   'src/lib/parser.js',
   'src/lib/exchange.js',
   'src/lib/ocr.js',
+  'src/lib/voice.js',
+  'src/lib/voice-worker.js',
+  'src/lib/quick-input.js',
 ];
 
 function valid(r) {
@@ -78,11 +82,13 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-  const cacheName = path.startsWith('vendor/ocr/')
-    ? OCR
-    : /^(assets|fonts)\//.test(path)
-      ? WORLD
-      : CORE;
+  const cacheName = path.startsWith('vendor/voice/')
+    ? VOICE
+    : path.startsWith('vendor/ocr/')
+      ? OCR
+      : /^(assets|fonts)\//.test(path)
+        ? WORLD
+        : CORE;
   e.respondWith(
     (async () => {
       const cache = await caches.open(cacheName),

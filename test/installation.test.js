@@ -68,7 +68,10 @@ test('release archive strips local owner IDs, extended attributes and AppleDoubl
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  const tar = gunzipSync(await readFile(resolve(root, '.release/Yujournal-v0.1.0-web.tar.gz')));
+  const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+  const tar = gunzipSync(
+    await readFile(resolve(root, `.release/Yujournal-v${pkg.version}-web.tar.gz`)),
+  );
   let offset = 0,
     files = 0;
   const str = (header, a, b) => header.subarray(a, b).toString().replace(/\0.*$/s, '');

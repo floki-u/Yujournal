@@ -57,11 +57,32 @@ export function createLedger(today = localDate()) {
     unlockedThemes: ['classic'],
     wornBadge: null,
     preferences: { theme: 'classic', displayMode: 'system' },
+    profile: { name: '我的本机账本', avatarPreset: 'theme', avatarId: null },
     activity: { offlineRecords: 0, reportExports: 0 },
     lastBackup: null,
   };
 }
 export const active = (s) => s.transactions.filter((t) => !t.deletedAt);
+export const imageReferences = (s) => [
+  ...new Set([
+    ...s.transactions.flatMap((t) => t.attachmentIds),
+    ...(s.profile?.avatarId ? [s.profile.avatarId] : []),
+  ]),
+];
+export function setProfile(s, input) {
+  const current = s.profile || { name: '我的本机账本', avatarPreset: 'theme', avatarId: null };
+  s.profile = { ...current, ...input };
+  text(s.profile.name, 40);
+  enumValue(s.profile.avatarPreset, [
+    'theme',
+    'initials',
+    'mint',
+    'postcard',
+    'starlight',
+    'pixel',
+  ]);
+  if (s.profile.avatarId) identity(s.profile.avatarId);
+}
 export const balance = (s) =>
   s.opening.amount +
   active(s).reduce((n, t) => n + (t.type === 'income' ? t.baseAmount : -t.baseAmount), 0);
@@ -200,6 +221,20 @@ export function validateLedger(s) {
   if (s.wornBadge && !s.unlockedBadges.includes(s.wornBadge)) throw Error('佩戴徽章尚未解锁。');
   enumValue(s.preferences?.theme, Object.keys(THEMES));
   enumValue(s.preferences.displayMode, ['light', 'dark', 'system']);
+  if (s.profile) {
+    text(s.profile.name, 40);
+    enumValue(s.profile.avatarPreset, [
+      'theme',
+      'initials',
+      'mint',
+      'postcard',
+      'starlight',
+      'pixel',
+    ]);
+    if (s.profile.avatarId) identity(s.profile.avatarId);
+  }
+  if (s.preferences.shortcutsEnabled != null && typeof s.preferences.shortcutsEnabled !== 'boolean')
+    throw Error('快捷入口设置无效。');
   if (!s.unlockedThemes.includes(s.preferences.theme)) throw Error('使用的主题尚未解锁。');
   if (
     !s.activity ||
@@ -420,6 +455,7 @@ export function mergeLedger(local, incoming, prefer = 'local') {
   if (prefer === 'imported') {
     out.opening = structuredClone(incoming.opening);
     out.preferences = structuredClone(incoming.preferences);
+    if (incoming.profile) out.profile = structuredClone(incoming.profile);
     out.wornBadge = incoming.wornBadge;
   }
   out.unlockedBadges = [...new Set([...out.unlockedBadges, ...incoming.unlockedBadges])];

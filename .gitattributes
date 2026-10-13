@@ -7,3 +7,7 @@ assets/** binary
 *.webp binary
 *.ttf binary
 *.gz binary
+
+*.onnx binary
+*.wasm binary
+*.shortcut binary

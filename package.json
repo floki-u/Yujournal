@@ -1,6 +1,6 @@
 {
   "name": "yujournal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An offline-first, local-only personal ledger PWA for iPhone.",
   "license": "MIT",
   "private": true,
@@ -27,6 +27,7 @@
     "release:pack": "node scripts/package-release.js"
   },
   "devDependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@napi-rs/canvas": "0.1.80",
     "fake-indexeddb": "6.2.5",
     "prettier": "3.6.2"

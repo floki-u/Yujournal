@@ -24,6 +24,9 @@ for (const name of [
 ]) {
   await cp(resolve(root, name), resolve(dist, name), { recursive: true });
 }
+await mkdir(resolve(dist, 'shortcuts'), { recursive: true });
+for (const name of ['Yujournal-Screenshot.shortcut', 'Yujournal-Voice.shortcut'])
+  await cp(resolve(root, 'shortcuts', name), resolve(dist, 'shortcuts', name));
 const url = appURL();
 await writeProfile(url, resolve(dist, 'Yujournal.mobileconfig'));
 await writeFile(resolve(dist, '.nojekyll'), '');

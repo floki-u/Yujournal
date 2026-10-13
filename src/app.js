@@ -2,10 +2,19 @@ import * as L from './lib/ledger.js';
 import * as DB from './lib/database.js';
 import { money, parseAmount, CURRENCIES, originalMoney, convertAmount } from './lib/money.js';
 import { localDate, addDays, monthDay, advanceOccurrence } from './lib/dates.js';
-import { parseEntry } from './lib/parser.js';
+import { parseEntry, parseBatch } from './lib/parser.js';
 import { exportBackup, importBackup, backupEncrypted, sha } from './lib/backup.js';
 import { reference, latestRates } from './lib/exchange.js';
 import { recognize, releaseOCR, shrinkImage, prepareOCR, ocrReady, OCR_CACHE } from './lib/ocr.js';
+import {
+  VoiceCapture,
+  voiceReady,
+  prepareVoice,
+  voiceManifest,
+  releaseVoice,
+  VOICE_CACHE,
+} from './lib/voice.js';
+import { quickText, shortcutURL } from './lib/quick-input.js';
 import { paths } from './icons.js';
 const F = window.Yujournal,
   V = window.YujournalViews,
@@ -64,6 +73,114 @@ let state,
   undoId = null,
   returnScreen = 'home',
   ocrSequence = 0;
+let voiceCapture = null,
+  voicePointer = null,
+  voiceStartY = 0,
+  voiceCancelled = false,
+  voiceDownload = null;
+function voiceState(message) {
+  const node = document.querySelector('#voice-status');
+  if (node) node.textContent = message;
+  const button = document.querySelector('[data-voice-control]');
+  if (button && /录音已结束|正在本机|载入本机|载入模型/.test(message)) button.disabled = true;
+}
+
+function voiceUI() {
+  openSheet(
+    `${tabs()}<p class="helper">录音和识别都在本机。一次可以说多笔：午饭 36 元、咖啡 28 元、工资到账 20000 元。识别后核对清单，一次确认。</p><button class="voice-hold" data-voice-control type="button" aria-label="按住说话">${icon('mic')}<strong>按住说话</strong><span>松开整理 · 上滑取消</span></button><p id="voice-status" class="voice-status" role="status">正在检查本机语音包…</p><button id="prepare-voice" class="primary" data-action="prepareVoice" hidden>准备本机语音包（约 98 MiB）</button><p class="helper">首次需要联网准备约 98 MiB 的中文语音包，之后离线使用。本机识别可能需要等待；不会保存原始录音，也不会上传录音。</p><div class="entry-fallback"><button class="text-button" data-action="entryMode" data-value="text">改用文本 / 键盘听写</button></div>`,
+    '长按语音记账',
+  );
+  const button = document.querySelector('[data-voice-control]');
+  button.disabled = true;
+  voiceReady()
+    .then((ready) => {
+      if (!button.isConnected) return;
+      button.disabled = !ready;
+      document.querySelector('#prepare-voice').hidden = ready;
+      voiceState(
+        ready ? '按住说话，松开后自动整理。' : '首次需要准备语音包，下载后无需再联网识别。',
+      );
+    })
+    .catch(() => {
+      if (button.isConnected) {
+        document.querySelector('#prepare-voice').hidden = false;
+        voiceState('需要联网准备本机语音包。');
+      }
+    });
+  voiceCapture = new VoiceCapture({
+    onState: voiceState,
+    onError: (e) => {
+      button.classList.remove('recording');
+      button.disabled = false;
+      voiceState(e.name === 'NotAllowedError' ? '麦克风未获授权，请允许后再按住说话。' : e.message);
+    },
+    onResult: (text) => {
+      button.classList.remove('recording');
+      if (!entry || entry.mode !== 'voice') return;
+      entry.raw = text;
+      try {
+        prepareBatch(text, { source: 'voice' });
+      } catch (e) {
+        entry.mode = 'text';
+        entryUI();
+        error('语音结果需要补充：' + e.message);
+      }
+    },
+  });
+}
+async function prepareVoiceUI() {
+  voiceDownload?.abort();
+  voiceDownload = new AbortController();
+  const button = document.querySelector('#prepare-voice');
+  if (button) button.disabled = true;
+  try {
+    await prepareVoice(
+      (p) =>
+        voiceState(
+          `准备本机语音包 ${p.percent}%（${(p.loaded / 1024 / 1024).toFixed(1)} / ${(p.total / 1024 / 1024).toFixed(1)} MiB）`,
+        ),
+      voiceDownload.signal,
+    );
+    if (entry?.mode === 'voice') voiceUI();
+    else toast('本机语音包已准备，可长按说话。');
+  } catch (e) {
+    if (e.name !== 'AbortError') error(e);
+    if (button?.isConnected) button.disabled = false;
+  } finally {
+    voiceDownload = null;
+  }
+}
+let profilePictureURL = null,
+  profilePictureId = null,
+  profilePictureSequence = 0;
+async function loadProfilePicture() {
+  const id = state.profile?.avatarId || null;
+  if (id === profilePictureId) return;
+  const seq = ++profilePictureSequence;
+  const image = id ? await DB.getAttachment(id) : null;
+  if (seq !== profilePictureSequence) return;
+  if (profilePictureURL) URL.revokeObjectURL(profilePictureURL);
+  profilePictureId = id;
+  profilePictureURL = image ? URL.createObjectURL(image.blob) : null;
+}
+function profileAvatar() {
+  const profile = state.profile || {},
+    preset = profile.avatarPreset || 'theme';
+  if (profile.avatarId && profilePictureId === profile.avatarId && profilePictureURL)
+    return `<img class="personal-avatar" src="${profilePictureURL}" alt="我的头像">`;
+  if (preset === 'initials')
+    return `<span class="avatar-initial">${esc(Array.from(profile.name || '余记')[0])}</span>`;
+  if (T.worlds[preset]?.avatar)
+    return `<img class="world-avatar" src="${T.worlds[preset].avatar}" alt="我的头像">`;
+  return T.avatar(icon('user'));
+}
+function profileUI() {
+  const profile = state.profile || { name: '我的本机账本', avatarPreset: 'theme', avatarId: null };
+  openSheet(
+    `<div class="profile-edit-avatar">${profileAvatar()}</div><form id="profile-form">${field('账本名称 / 昵称', 'name', profile.name, 'text', 'required maxlength="40"')}${submit('保存名称')}</form><p class="helper">头像和名称只保存在本机，随完整备份迁移。</p><div class="avatar-picker">${['theme', 'initials', 'mint', 'postcard', 'starlight', 'pixel'].map((id) => `<button data-action="avatarPreset" data-id="${id}" aria-label="${id === 'theme' ? '跟随主题' : id === 'initials' ? '名字首字' : T.worlds[id].name}头像">${id === 'theme' ? T.avatar(icon('user')) : id === 'initials' ? '<span>余</span>' : `<img src="${T.worlds[id].avatar}" alt="">`}</button>`).join('')}</div><button class="secondary" style="width:100%" data-action="pickAvatar">从照片选择头像</button><input type="file" id="avatar-input" accept="image/*" hidden>`,
+    '编辑我的资料',
+  );
+}
 function bridge() {
   const rows = L.active(state);
   const first = [state.opening.date, ...rows.map((t) => t.date)].sort()[0];
@@ -80,14 +197,15 @@ function bridge() {
     offlineRecords: state.activity.offlineRecords,
     reportExports: state.activity.reportExports,
     fxInfo,
+    profileName: state.profile?.name || '我的本机账本',
   };
 }
 function toast(message, undo = false) {
   const el = document.querySelector('#toast');
-  el.innerHTML = `${esc(message)}${undo ? '<button class="toast-action" data-action="undoDelete">撤销删除</button>' : ''}`;
+  el.innerHTML = `<span>${esc(message)}</span>${undo ? '<button class="toast-action" data-action="undoDelete">撤销</button>' : ''}<button class="toast-close" data-action="dismissToast" aria-label="关闭提示">×</button>`;
   el.hidden = false;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (el.hidden = true), undo ? 12000 : 5000);
+  toast.timer = setTimeout(() => (el.hidden = true), undo ? 12000 : 2800);
 }
 function error(e) {
   const message = typeof e === 'string' ? e : e.message;
@@ -102,6 +220,10 @@ function revoke() {
   urls = [];
 }
 function close() {
+  voiceCapture?.cancel();
+  voiceCapture = null;
+  voiceDownload?.abort();
+  voiceDownload = null;
   ocrSequence++;
   quoteSequence++;
   releaseOCR();
@@ -114,6 +236,8 @@ function close() {
 function openSheet(html, title) {
   document.querySelector('#sheet-content').innerHTML =
     `<div class="sheet-handle"></div><div class="sheet-inner"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${html}<div id="entry-error" class="error" role="alert" hidden></div></div>`;
+  sheet.scrollTop = 0;
+  document.querySelector('#sheet-content').scrollTop = 0;
   if (!sheet.open) sheet.showModal();
 }
 const field = (label, name, value = '', type = 'text', extra = '') =>
@@ -126,7 +250,7 @@ const settingsRow = (ic, title, subtitle, act) =>
   `<button class="settings-row" data-action="${act}">${icon(ic)}<div><strong>${esc(title)}</strong><p>${esc(subtitle)}</p></div>${icon('arrow')}</button>`;
 function head(title = '余记', back = false) {
   const worn = F.badgeById(state.wornBadge);
-  return `<header class="page-head"><${back ? 'button' : 'div'} class="${back ? 'icon-button' : 'brand v3-brand'}" ${back ? 'data-action="back" aria-label="返回"' : ''}>${back ? icon('left') : icon('book') + esc(title)}</${back ? 'button' : 'div'}>${back ? `<span class="eyebrow">${esc(title)}</span>` : ''}<div class="head-right">${screen === 'home' ? `<button class="calendar-trigger" data-action="calendar" data-context="home" aria-label="打开日期日历">${icon('clock')}${selectedDay.slice(5).replace('-', ' 月 ')} 日 ${icon('down')}</button>` : ''}<button class="icon-button" data-action="settings" aria-label="我的与设置">${T.avatar(icon('user'))}${worn ? icon(worn.icon).replace('<svg ', '<svg class="worn-mini" ') : ''}</button></div></header>`;
+  return `<header class="page-head"><${back ? 'button' : 'div'} class="${back ? 'icon-button' : 'brand v3-brand'}" ${back ? 'data-action="back" aria-label="返回"' : ''}>${back ? icon('left') : icon('book') + esc(title)}</${back ? 'button' : 'div'}>${back ? `<span class="eyebrow">${esc(title)}</span>` : ''}<div class="head-right">${screen === 'home' ? `<button class="calendar-trigger" data-action="calendar" data-context="home" aria-label="打开日期日历">${icon('clock')}${selectedDay.slice(5).replace('-', ' 月 ')} 日 ${icon('down')}</button>` : ''}<button class="icon-button" data-action="settings" aria-label="我的与设置">${profileAvatar()}${worn ? icon(worn.icon).replace('<svg ', '<svg class="worn-mini" ') : ''}</button></div></header>`;
 }
 const row = (t) =>
   `<button class="txn-row" data-action="detail" data-id="${esc(t.id)}"><span class="txn-icon">${icon(t.icon)}</span><span class="txn-info"><strong>${esc(t.title)}</strong><span>${esc(t.source)} · ${t.date === localDate() ? '今天' : t.date}</span></span><span class="txn-money ${t.type === 'income' ? 'positive' : ''}">${t.type === 'income' ? '+' : '−'}${money(t.baseAmount)}${t.currency !== 'CNY' ? `<small>${originalMoney(t.amount, t.currency)} ${t.currency}</small>` : ''}</span></button>`;
@@ -151,6 +275,7 @@ function context() {
     amount,
     transactionRow: row,
     settingsRow,
+    profileAvatar,
     balance: () => L.balance(state),
   };
 }
@@ -236,6 +361,11 @@ function render() {
       'beforeend',
       `<button class="mini-notice" data-action="install">${icon('phone')}<div><strong>先安装到主屏幕，再开始正式记账</strong><p>固定入口方便离线打开和长期保管账目</p></div>${icon('arrow')}</button>`,
     );
+  if (screen === 'home' && state.preferences.shortcutsEnabled)
+    content.insertAdjacentHTML(
+      'beforeend',
+      `<button class="mini-notice" data-action="receiveQuickInput">${icon('upload')}<div><strong>接收快捷输入</strong><p>截图分享后，把识别结果带回这个账本</p></div>${icon('arrow')}</button>`,
+    );
   if (screen === 'home' && state.pending.length)
     content.insertAdjacentHTML(
       'beforeend',
@@ -281,16 +411,24 @@ function go(name) {
     returnScreen = screen;
   screen = name;
   render();
-  window.scrollTo(0, 0);
+  content.scrollTop = 0;
+  content.scrollLeft = 0;
+  content.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
+  globalThis.requestAnimationFrame?.(() => {
+    content.scrollTop = 0;
+  });
 }
 async function commit(action, options = {}) {
   const badges = state.unlockedBadges.length;
   state = await DB.mutate(action, options);
+  await loadProfilePicture();
   render();
   if (state.unlockedBadges.length > badges) toast('获得新徽章，去徽章中心看看。');
   return state;
 }
-function entryStart(mode = 'text', value = '') {
+function entryStart(mode = 'voice', value = '') {
+  voiceCapture?.cancel();
+  voiceCapture = null;
   revoke();
   quote = null;
   entry = { mode, raw: value, file: null, parsed: null, editing: null, pending: null };
@@ -298,7 +436,8 @@ function entryStart(mode = 'text', value = '') {
 }
 function tabs() {
   return `<div class="entry-tabs">${[
-    ['text', '一句话'],
+    ['voice', '语音'],
+    ['text', '文本'],
     ['ocr', '截图'],
     ['manual', '金额'],
   ]
@@ -309,6 +448,10 @@ function tabs() {
     .join('')}</div>`;
 }
 function entryUI() {
+  if (entry.mode === 'voice') {
+    voiceUI();
+    return;
+  }
   if (entry.mode === 'manual' || entry.parsed) {
     const p = entry.parsed || {
       date: selectedDay,
@@ -439,37 +582,144 @@ async function entrySave(form) {
   T.feedback('saved');
   toast('已保存到本机。');
 }
-async function photo(file) {
+function prepareBatch(raw, { source = 'text', receipt = false } = {}) {
+  const parsed = parseBatch(raw, { source, receipt });
+  entry.raw = raw;
+  entry.batch = parsed;
+  entry.parsed = null;
+  entry.batchSource = source;
+  batchUI();
+}
+function batchUI() {
+  const batch = entry.batch;
+  openSheet(
+    `<p class="helper">共整理 ${batch.items.length} 笔。核对金额、方向和日期，再一次确认入账。</p>${entry.file ? `<img class="photo-preview" src="${entry.previewURL}" alt="付款截图，供核对">` : ''}<details class="helper"><summary>查看 / 修改原始识别文字</summary><textarea id="batch-raw" class="entry-text" aria-label="原始识别文字">${esc(entry.raw)}</textarea><button class="secondary" data-action="reparseBatch">重新整理</button></details>${batch.warnings.length ? `<p class="batch-warning">${batch.warnings.map(esc).join('<br>')}</p>` : ''}<form id="batch-form">${batch.items
+      .map(
+        (t, i) =>
+          `<section class="batch-item" data-index="${i}"><label class="toggle-row"><input type="checkbox" name="include-${i}" checked><strong>第 ${i + 1} 笔</strong></label>${field('备注', `title-${i}`, t.title, 'text', 'required maxlength="100"')}<div class="field-grid">${select(
+            '收支',
+            `type-${i}`,
+            [
+              ['expense', '支出'],
+              ['income', '收入'],
+            ],
+            t.type,
+          )}${select(
+            '币种',
+            `currency-${i}`,
+            Object.entries(CURRENCIES).map(([k, v]) => [k, k + ' · ' + v.name]),
+            t.currency,
+          )}</div>${t.ambiguous ? select('有多个候选金额', `candidate-${i}`, [['', '请选择'], ...t.candidates.map((c) => [String(c.amount), c.label])], '') : ''}${field('金额', `amount-${i}`, t.amount == null ? '' : t.amount / 100, 'text', 'required inputmode="decimal"')}${field('日期', `date-${i}`, t.date, 'date', `required max="${localDate()}"`)}${field('外币实际人民币结算（可选）', `settlement-${i}`, '', 'text', 'inputmode="decimal"')}<p class="helper">${t.currency === 'CNY' ? '人民币按原额记录。' : '参考价会在确认时检查，有缓存可离线；无报价时填实际人民币结算。'}</p></section>`,
+      )
+      .join(
+        '',
+      )}${entry.file ? '<label class="toggle-row"><span>在本机保留压缩截图，随完整备份迁移</span><input type="checkbox" name="retain"></label>' : ''}${submit('全部确认入账')}<p class="confirm-copy">取消勾选可跳过某笔。不会把汇总重复算一笔。</p></form>`,
+    '核对收支清单',
+  );
+}
+async function batchSave(form) {
+  const current = entry,
+    values = Object.fromEntries(new FormData(form)),
+    drafts = [],
+    images = [];
+  if (current.file && values.retain) {
+    const blob = await shrinkImage(current.file, { max: 1600, pixels: 3000000 });
+    if (blob.size > 2 * 1024 * 1024) throw Error('截图附件过大，请缩小付款区域。');
+    images.push({ id: L.id(), blob });
+  }
+  for (let i = 0; i < current.batch.items.length; i++) {
+    if (!values[`include-${i}`]) continue;
+    const original = current.batch.items[i],
+      currency = values[`currency-${i}`],
+      amt = parseAmount(values[`amount-${i}`], currency),
+      date = values[`date-${i}`];
+    const settlement =
+      currency !== 'CNY' && values[`settlement-${i}`]?.trim()
+        ? parseAmount(values[`settlement-${i}`])
+        : undefined;
+    const q = currency === 'CNY' || settlement !== undefined ? {} : await reference(currency, date);
+    drafts.push(
+      L.transaction({
+        title: values[`title-${i}`],
+        type: values[`type-${i}`],
+        currency,
+        amount: amt,
+        date,
+        settlement,
+        ...q,
+        source: current.batchSource || 'text',
+        rawText: original.rawText,
+        icon: original.icon,
+        attachmentIds: images.map((a) => a.id),
+      }),
+    );
+  }
+  if (entry !== current) throw new DOMException('已取消入账。', 'AbortError');
+  if (!drafts.length) throw Error('至少选择一笔收支。');
+  await commit(
+    (s) => {
+      for (const t of drafts) L.addTransaction(s, t, { offline: !navigator.onLine });
+    },
+    { attachments: images },
+  );
+  selectedDay = drafts.at(-1).date;
+  close();
+  go('home');
+  T.feedback('saved');
+  toast(`已一次保存 ${drafts.length} 笔到本机。`);
+}
+function photoReview(file) {
   if (!entry) return;
+  revoke();
+  entry.originalFile = file;
+  entry.file = null;
+  entry.cropTop = 0;
+  entry.cropBottom = 100;
+  const url = URL.createObjectURL(file);
+  urls.push(url);
+  entry.previewURL = url;
+  openSheet(
+    `<p class="helper">保留原图清晰度；如金额识别不准，先把范围缩到付款金额与商户区域。</p><div class="crop-preview"><div class="crop-surface"><img src="${url}" alt="待识别付款截图"><div id="crop-mask-top"></div><div id="crop-mask-bottom"></div></div></div><label class="field"><span>开始位置</span><input id="crop-top" type="range" min="0" max="85" value="0"></label><label class="field"><span>结束位置</span><input id="crop-bottom" type="range" min="15" max="100" value="100"></label><label class="field"><span>截图内容</span><select id="ocr-layout"><option value="receipt">单张付款凭证</option><option value="list">多条交易记录（清单核对）</option></select></label><div id="ocr-progress" class="progress-status" hidden></div><button class="primary" data-action="recognizePhoto">识别所选区域</button>`,
+    '选择付款区域',
+  );
+}
+async function recognizePhoto() {
   const seq = ++ocrSequence,
     status = document.querySelector('#ocr-progress');
   status.hidden = false;
-  status.textContent = '正在压缩截图…';
-  document.querySelector('[data-action=parseEntry]').disabled = true;
+  const crop = {
+    x: 0,
+    y: entry.cropTop / 100,
+    width: 1,
+    height: (entry.cropBottom - entry.cropTop) / 100,
+  };
+  const image = await shrinkImage(entry.originalFile, { crop, format: 'image/png' });
+  if (seq !== ocrSequence || !entry) return;
+  entry.file = image;
+  const receipt = document.querySelector('#ocr-layout').value === 'receipt';
+  entry.receipt = receipt;
+  const result = await recognize(image, (message) => {
+    if (status.isConnected) status.textContent = message;
+  });
+  if (seq !== ocrSequence) return;
+  entry.raw = result.text;
   try {
-    const image = await shrinkImage(file);
-    if (seq !== ocrSequence) return;
-    entry.file = image;
-    const text = await recognize(image, (message) => {
-      if (seq === ocrSequence && status.isConnected) status.textContent = message;
-    });
-    if (seq !== ocrSequence) return;
-    entry.raw = text;
-    document.querySelector('#entry-text').value = text;
-    status.textContent = '识别完成，请核对文字后整理。';
-    try {
-      entry.parsed = parseEntry(text, { source: 'ocr' });
-      entryUI();
-    } catch (e) {
-      error(e);
-    }
+    prepareBatch(result.text, { source: 'ocr', receipt });
+    if (result.confidence < 60)
+      entry.batch.warnings.unshift('文字识别置信度较低，请对照截图核对关键金额。');
+    batchUI();
   } catch (e) {
-    if (seq === ocrSequence) error(e);
-  } finally {
-    const b = document.querySelector('[data-action=parseEntry]');
-    if (b) b.disabled = false;
+    openSheet(
+      `<img class="photo-preview" src="${entry.previewURL}" alt="待核对截图"><textarea id="entry-text" class="entry-text" aria-label="一句话记账">${esc(result.text)}</textarea><p class="helper">尚未找到明确金额，可修改上面的文字再整理。</p><button class="primary" data-action="parseEntry">整理成账目</button>`,
+      '核对识别文字',
+    );
+    error(e);
   }
 }
+async function photo(file) {
+  photoReview(file);
+}
+
 async function detail(id) {
   const t = state.transactions.find((t) => t.id === id && !t.deletedAt);
   if (!t) return;
@@ -691,18 +941,35 @@ function download(blob, name) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-async function posterSave(share = false) {
+async function posterSave(share = true) {
   if (!posterBlob) throw Error('图片还在生成，请稍后点击。');
   const name = `余记-${F.periodInfo(periodDate, period).prefix}-${posterIndex + 1}.png`,
     file = new File([posterBlob], name, { type: 'image/png' });
   if (share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: '余记 · 收支报告' });
+    try {
+      await navigator.share({ files: [file], title: '余记 · 收支报告' });
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      posterImagePreview();
+      return;
+    }
+  } else if (share) {
+    posterImagePreview();
+    return;
   } else download(posterBlob, name);
   await commit((s) => {
     s.activity.reportExports++;
     L.award(s);
   });
-  toast('已生成 PNG；iPhone 分享面板可存到照片或文件。');
+  toast(share ? '系统分享已完成。' : '报告图片已下载。');
+}
+function posterImagePreview() {
+  const url = URL.createObjectURL(posterBlob);
+  urls.push(url);
+  openSheet(
+    `<p class="helper">长按下面的图片，选择“存储到照片”。图片在本机生成，不会上传。</p><img class="poster-save-image" src="${url}" alt="当前收支报告长图"><button class="secondary" data-action="downloadPoster">下载到文件</button>`,
+    '保存报告图片',
+  );
 }
 function backupUI() {
   openSheet(
@@ -819,7 +1086,7 @@ async function storageUI() {
   const estimate = await navigator.storage?.estimate?.(),
     ready = await ocrReady().catch(() => false);
   openSheet(
-    `<p class="formula">本机使用约 ${estimate?.usage ? (estimate.usage / 1024 / 1024).toFixed(1) + ' MiB' : '暂无法统计'}<br>${L.active(state).length} 笔收支 · ${state.transactions.filter((t) => t.deletedAt).length} 笔可恢复删除记录<br>离线截图识别：${ready ? '已准备' : '尚未下载'}</p><p class="helper">应用外壳自动缓存。特殊主题打开后缓存图片；像素字体按需加载。清理识别资源只影响截图 OCR，账目和备份不受影响。</p><button class="primary" data-action="prepareOcr">准备离线识别（约 7.5 MiB）</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearOcr">清理识别资源缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="persistent">请求浏览器持久储存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="trash">查看已删除记录</button><div id="ocr-progress" class="progress-status" hidden></div><p class="safety-note">浏览器可能清理本机网站数据。持久储存由系统决定，不能代替 .yuji 文件备份。每次换机、清除浏览数据前先导出。</p>`,
+    `<p class="formula">本机使用约 ${estimate?.usage ? (estimate.usage / 1024 / 1024).toFixed(1) + ' MiB' : '暂无法统计'}<br>${L.active(state).length} 笔收支 · ${state.transactions.filter((t) => t.deletedAt).length} 笔可恢复删除记录<br>离线截图识别：${ready ? '已准备' : '尚未下载'}</p><p class="helper">应用外壳自动缓存。特殊主题打开后缓存图片；像素字体按需加载。清理识别资源只影响截图 OCR，账目和备份不受影响。</p><button class="primary" data-action="prepareOcr">准备离线识别（约 7.5 MiB）</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearOcr">清理识别资源缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearVoice">清理本机语音包缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="persistent">请求浏览器持久储存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="trash">查看已删除记录</button><div id="ocr-progress" class="progress-status" hidden></div><p class="safety-note">浏览器可能清理本机网站数据。持久储存由系统决定，不能代替 .yuji 文件备份。每次换机、清除浏览数据前先导出。</p>`,
     '本机储存',
   );
 }
@@ -831,14 +1098,49 @@ function install() {
 }
 function shortcuts() {
   openSheet(
-    `<p class="formula">可在 Apple「快捷指令」中组合：<br>听写文本 → URL 编码 → 打开 URL：<br><code>${esc(new URL('./#entry=text&text=', document.baseURI).href)}【编码结果】</code><br><br>把快捷指令放到桌面小组件，点一下开始记账。复制付款凭证文字后也可用同一路径带入。</p><p class="helper">带入的文字只在本机页面解析，并会立即从浏览器地址中清除。保存前仍需确认。纯 PWA 不能提供自动刷新余额的原生 WidgetKit 小组件，也无法读取微信、支付宝或银行 App 的交易记录。键盘听写由 iOS 处理，是否离线及隐私设置取决于系统。</p>`,
-    '快捷指令入口',
+    `<p class="helper">不是另外记一遍账：一次添加快捷指令，以后在截图分享菜单触发识别，回到余记一次确认。</p><label class="toggle-row"><span>在首页显示“接收快捷输入”</span><input id="quick-input-enabled" type="checkbox" ${state.preferences.shortcutsEnabled ? 'checked' : ''}></label><a class="primary" href="${shortcutURL('screenshot', document.baseURI)}">添加截图记账快捷指令</a><a class="secondary shortcut-link" href="${shortcutURL('voice', document.baseURI)}">添加本机语音入口</a><p class="helper">iOS 会打开或下载已签名的 .shortcut 文件，点“添加快捷指令”完成一次配置。若只保存到“文件”，在那里打开即可。开关只管理余记的接收按钮，网页不能静默修改系统配置或检测安装状态。</p><div class="formula">付款截图 → 分享 → “余记 · 截图记账” → 本机提取文字 → 核对清单 → 全部确认入账。<br><br>如果打开的是 Safari，而你的账本在主屏幕余记，请回到余记点“接收快捷输入”，无需再手输金额。</div><button class="secondary" style="width:100%" data-action="receiveQuickInput">接收快捷输入</button><p class="helper">本机语音入口可放进苹果快捷指令小组件，进入余记后按住说话。PWA 无法后台监听每次截图；未确认前不会偷偷入账。</p>`,
+    '快捷输入',
   );
+}
+function quickInputUI() {
+  openSheet(
+    `<p class="helper">点读取，接收“余记 · 截图记账”处理的本机文字。首次可能需要点系统的“粘贴”。如历史账本在主屏幕图标中，请在那里完成这一步。</p><button class="primary" data-action="readQuickClipboard">读取快捷输入</button><p class="helper">也可以长按下面的框粘贴，不需要重输金额。</p><textarea id="quick-text" class="entry-text" aria-label="快捷识别文字"></textarea><label class="field"><span>截图内容</span><select id="quick-layout"><option value="receipt">单张付款凭证</option><option value="list">多条交易记录</option></select></label><button class="secondary" style="width:100%" data-action="parseQuickInput">整理为清单</button>`,
+    '接收快捷输入',
+  );
+}
+async function readQuickClipboard() {
+  if (!navigator.clipboard?.readText) throw Error('当前入口无法读取剪贴板，请长按输入框粘贴。');
+  const text = await navigator.clipboard.readText();
+  document.querySelector('#quick-text').value = quickText(text);
+}
+function parseQuickInput() {
+  const text = document.querySelector('#quick-text').value,
+    receipt = document.querySelector('#quick-layout').value === 'receipt';
+  const raw = text.startsWith('YUJOURNAL-INBOX/1\n') ? quickText(text) : text;
+  entry = { mode: 'ocr', raw, file: null, parsed: null, editing: null, pending: null, receipt };
+  prepareBatch(raw, { source: 'ocr', receipt });
 }
 async function execute(action, el) {
   const id = el.dataset.id,
     value = el.dataset.value;
   switch (action) {
+    case 'profile':
+      profileUI();
+      break;
+    case 'pickAvatar':
+      document.querySelector('#avatar-input').click();
+      break;
+    case 'avatarPreset':
+      await commit((s) => L.setProfile(s, { avatarPreset: id, avatarId: null }));
+      profileUI();
+      break;
+    case 'dismissToast':
+      document.querySelector('#toast').hidden = true;
+      clearTimeout(toast.timer);
+      break;
+    case 'downloadPoster':
+      await posterSave(false);
+      break;
     case 'close':
       close();
       break;
@@ -867,8 +1169,38 @@ async function execute(action, el) {
       break;
     case 'parseEntry':
       entry.raw = document.querySelector('#entry-text').value;
-      entry.parsed = parseEntry(entry.raw, { source: entry.mode === 'ocr' ? 'ocr' : 'text' });
-      entryUI();
+      prepareBatch(entry.raw, {
+        source: entry.mode === 'ocr' ? 'ocr' : 'text',
+        receipt: entry.mode === 'ocr' && entry.receipt !== false,
+      });
+      break;
+    case 'receiveQuickInput':
+      quickInputUI();
+      break;
+    case 'readQuickClipboard':
+      await readQuickClipboard();
+      break;
+    case 'parseQuickInput':
+      parseQuickInput();
+      break;
+    case 'prepareVoice':
+      await prepareVoiceUI();
+      break;
+    case 'clearVoice':
+      voiceCapture?.cancel();
+      releaseVoice();
+      await caches.delete(VOICE_CACHE);
+      await storageUI();
+      toast('已清理语音包，账目仍保存在本机。');
+      break;
+    case 'recognizePhoto':
+      await recognizePhoto();
+      break;
+    case 'reparseBatch':
+      prepareBatch(document.querySelector('#batch-raw').value, {
+        source: entry.batchSource,
+        receipt: entry.receipt === true,
+      });
       break;
     case 'uploadPhoto':
       document.querySelector('#photo-input').click();
@@ -1135,10 +1467,54 @@ async function execute(action, el) {
       break;
   }
 }
+document.addEventListener('pointerdown', (event) => {
+  const button = event.target.closest('[data-voice-control]');
+  if (!button || button.disabled || !voiceCapture) return;
+  event.preventDefault();
+  voicePointer = event.pointerId;
+  voiceStartY = event.clientY;
+  voiceCancelled = false;
+  button.setPointerCapture?.(event.pointerId);
+  button.classList.add('recording');
+  voiceCapture.start();
+});
+document.addEventListener('pointermove', (event) => {
+  if (event.pointerId !== voicePointer) return;
+  voiceCancelled = event.clientY < voiceStartY - 60;
+  if (voiceCancelled) voiceState('松开即可取消，不会入账。');
+});
+document.addEventListener('pointerup', (event) => {
+  if (event.pointerId !== voicePointer) return;
+  voicePointer = null;
+  event.target.closest('[data-voice-control]')?.classList.remove('recording');
+  voiceCapture?.stop(voiceCancelled);
+});
+document.addEventListener('pointercancel', (event) => {
+  if (event.pointerId === voicePointer) {
+    voicePointer = null;
+    voiceCapture?.stop(true);
+    event.target.closest('[data-voice-control]')?.classList.remove('recording');
+  }
+});
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-voice-control]');
+  if (button && !button.disabled && event.detail === 0 && voiceCapture) {
+    if (voiceCapture.stream) voiceCapture.stop();
+    else voiceCapture.start();
+  }
+});
 document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el || el.disabled) return;
   e.preventDefault();
+  if (el.dataset.action === 'close') {
+    close();
+    return;
+  }
+  if (el.dataset.action === 'dismissToast') {
+    document.querySelector('#toast').hidden = true;
+    return;
+  }
   if (busy) return;
   busy = true;
   try {
@@ -1158,6 +1534,14 @@ document.addEventListener('submit', async (e) => {
     v = Object.fromEntries(new FormData(form));
   try {
     switch (form.id) {
+      case 'profile-form':
+        await commit((s) => L.setProfile(s, { name: v.name.trim() }));
+        close();
+        toast('名称已保存。');
+        break;
+      case 'batch-form':
+        await batchSave(form);
+        break;
       case 'entry-form':
         await entrySave(form);
         break;
@@ -1240,7 +1624,7 @@ document.addEventListener('submit', async (e) => {
         break;
     }
   } catch (err) {
-    error(err);
+    if (err.name !== 'AbortError') error(err);
   } finally {
     busy = false;
     document.body.removeAttribute('aria-busy');
@@ -1248,6 +1632,18 @@ document.addEventListener('submit', async (e) => {
 });
 document.addEventListener('change', async (e) => {
   try {
+    if (e.target.id === 'quick-input-enabled') {
+      await commit((s) => (s.preferences.shortcutsEnabled = e.target.checked));
+    }
+    if (e.target.id === 'avatar-input') {
+      const file = e.target.files[0];
+      if (file) {
+        const blob = await shrinkImage(file, { max: 400, pixels: 160000, quality: 0.9 });
+        const id = L.id();
+        await commit((s) => L.setProfile(s, { avatarId: id }), { attachments: [{ id, blob }] });
+        profileUI();
+      }
+    }
     if (e.target.id === 'photo-input') {
       const file = e.target.files[0];
       if (file) await photo(file);
@@ -1261,6 +1657,19 @@ document.addEventListener('change', async (e) => {
           '加密备份',
         );
       else await readBackup(importFile);
+    }
+    if (e.target.closest('#batch-form')) {
+      const name = e.target.name,
+        index = Number(name.split('-').at(-1));
+      if (name.startsWith('candidate-'))
+        document.querySelector('#batch-form').elements[`amount-${index}`].value = e.target.value
+          ? Number(e.target.value) / 100
+          : '';
+      if (name.startsWith('include-')) {
+        const section = e.target.closest('.batch-item');
+        for (const input of section.querySelectorAll('input,select'))
+          if (input !== e.target) input.disabled = !e.target.checked;
+      }
     }
     if (e.target.closest('#entry-form')) {
       if (e.target.name === 'candidate')
@@ -1279,6 +1688,20 @@ document.addEventListener('change', async (e) => {
   }
 });
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'crop-top' || e.target.id === 'crop-bottom') {
+    let top = Number(document.querySelector('#crop-top').value),
+      bottom = Number(document.querySelector('#crop-bottom').value);
+    if (bottom - top < 15) {
+      if (e.target.id === 'crop-top') top = bottom - 15;
+      else bottom = top + 15;
+    }
+    entry.cropTop = top;
+    entry.cropBottom = bottom;
+    document.querySelector('#crop-top').value = top;
+    document.querySelector('#crop-bottom').value = bottom;
+    document.querySelector('#crop-mask-top').style.height = top + '%';
+    document.querySelector('#crop-mask-bottom').style.height = 100 - bottom + '%';
+  }
   if (e.target.id === 'ledger-search') {
     query = e.target.value;
     const pos = e.target.selectionStart;
@@ -1299,6 +1722,7 @@ DB.updates.addEventListener('change', async () => {
     const latest = await DB.readLedger();
     if (latest.revision > state.revision) {
       state = latest;
+      await loadProfilePicture();
       render();
       if (sheet.open) toast('其他窗口已更新账本，提交时会检查冲突。');
     }
@@ -1321,6 +1745,7 @@ window.addEventListener('offline', render);
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
 document.addEventListener('visibilitychange', () => {
   document.body.classList.toggle('page-hidden', document.hidden);
+  if (document.hidden) voiceCapture?.cancel();
   if (!document.hidden) {
     refreshRates();
     if (state && !busy && !sheet.open) processDue().catch(error);
@@ -1329,20 +1754,17 @@ document.addEventListener('visibilitychange', () => {
 try {
   if (!globalThis.crypto?.subtle) throw Error('请使用 HTTPS 或本机 localhost 打开余记。');
   state = await DB.readLedger();
+  await loadProfilePicture();
   T.setup();
   render();
   if ('serviceWorker' in navigator)
     navigator.serviceWorker
       .register('./sw.js')
       .then(() => navigator.serviceWorker.ready)
-      .then(() => toast('离线账本已准备。'))
-      .catch(() =>
-        toast(
-          navigator.serviceWorker.controller
-            ? '正在使用已准备的本机缓存。'
-            : '离线外壳暂未准备，请检查网络后重新打开。',
-        ),
-      );
+      .catch(() => {
+        if (!navigator.serviceWorker.controller)
+          toast('离线缓存暂不可用，联网后重新打开即可重试。');
+      });
   await processDue();
   refreshRates();
   const params = new URLSearchParams(location.hash.slice(1) || location.search),
@@ -1350,7 +1772,12 @@ try {
     text = params.get('text');
   if (entryMode) {
     history.replaceState({}, '', location.pathname);
-    entryStart(entryMode === 'ocr' ? 'ocr' : 'text', text?.slice(0, 12000) || '');
+    if (entryMode === 'clipboard') quickInputUI();
+    else
+      entryStart(
+        entryMode === 'ocr' ? 'ocr' : entryMode === 'voice' ? 'voice' : 'text',
+        text?.slice(0, 12000) || '',
+      );
   }
 } catch (e) {
   content.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><p class="helper">未删除任何历史内容。请重新打开后重试。</p></div>`;

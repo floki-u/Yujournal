@@ -99,12 +99,16 @@ export async function recognize(file, progress) {
       tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
       user_defined_dpi: '300',
     });
-    return (await worker.recognize(file)).data.text;
+    const result = (await worker.recognize(file)).data;
+    return { text: result.text, confidence: result.confidence };
   } finally {
     await releaseOCR();
   }
 }
-export async function shrinkImage(file, { max = 1800, pixels = 4000000, quality = 0.84 } = {}) {
+export async function shrinkImage(
+  file,
+  { max = 2800, pixels = 6000000, quality = 0.9, format = 'image/jpeg', crop = null } = {},
+) {
   if (file.size > 30 * 1024 * 1024) throw Error('截图过大，请裁剪付款区域后重试。');
   const url = URL.createObjectURL(file),
     image = new Image();
@@ -114,16 +118,36 @@ export async function shrinkImage(file, { max = 1800, pixels = 4000000, quality 
       image.onerror = () => reject(Error('无法打开截图，请选择 PNG、JPEG 或 WebP。'));
       image.src = url;
     });
+    const region = crop
+      ? {
+          x: Math.max(0, crop.x * image.width),
+          y: Math.max(0, crop.y * image.height),
+          width: crop.width * image.width,
+          height: crop.height * image.height,
+        }
+      : { x: 0, y: 0, width: image.width, height: image.height };
     const scale = Math.min(
       1,
-      max / Math.max(image.width, image.height),
-      Math.sqrt(pixels / (image.width * image.height)),
+      max / Math.max(region.width, region.height),
+      Math.sqrt(pixels / (region.width * region.height)),
     );
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(image.width * scale);
-    canvas.height = Math.round(image.height * scale);
-    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+    canvas.width = Math.round(region.width * scale);
+    canvas.height = Math.round(region.height * scale);
+    canvas
+      .getContext('2d')
+      .drawImage(
+        image,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+    const blob = await new Promise((r) => canvas.toBlob(r, format, quality));
     canvas.width = canvas.height = 0;
     if (!blob) throw Error('截图压缩失败。');
     return blob;

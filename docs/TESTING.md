@@ -24,3 +24,11 @@ Automated tests cover money/JPY precision, Chinese amounts/ambiguity, stock loss
 - [ ] Same-address update and full restore on another device/entry point.
 
 Connection detection or Safari launch is not proof of installation or completed device checks. Record observed results only. Keep device IDs, passcodes, payment data and diagnostic dumps out of the repository and issues.
+
+## v0.2.0 validation
+
+The actual navigation/startup/image-save code paths have regression tests for the reported scroll retention, repeated notification and download-first behaviors. Added tests cover profile/photo backup references, multiple entries, receipt lists, payee direction, compound amounts, tagged clipboard input, signed installer headers, microphone release/permission races and resampling.
+
+The local Whisper-base model was run against a synthetic Mandarin recording on the desktop CPU, then its optimized encoder was also initialized and executed through the browser-oriented WASM backend. The four sample amounts entered the multi-entry parser. This is not an iPhone accuracy or latency benchmark. Names can still be misrecognized; the confirmation list remains required.
+
+Remaining physical checks: microphone permission and hold/cancel on iOS, cold offline speech, actual payment screenshots, signed shortcut import/execution, Safari/Web Clip clipboard handoff, and Photos sharing. No private screenshots, recordings or device diagnostics are included in source.

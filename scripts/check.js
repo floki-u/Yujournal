@@ -48,6 +48,17 @@ for (const item of resources.files) {
   )
     throw Error(`OCR resource checksum mismatch: ${item.path}`);
 }
+const voice = JSON.parse(
+  await readFile(resolve(root, 'vendor/voice/resource-manifest.json'), 'utf8'),
+);
+for (const item of voice.files) {
+  const bytes = await readFile(resolve(root, 'vendor/voice', item.path));
+  if (
+    bytes.length !== item.bytes ||
+    createHash('sha256').update(bytes).digest('hex') !== item.sha256
+  )
+    throw Error(`Voice checksum mismatch: ${item.path}`);
+}
 console.log(
   `Checked ${files.length} JavaScript files, manifest and ${resources.files.length} OCR resources.`,
 );

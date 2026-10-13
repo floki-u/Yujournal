@@ -8,3 +8,5 @@ assets/
 install/*.mobileconfig
 package-lock.json
 LICENSE
+
+shortcuts/*.shortcut

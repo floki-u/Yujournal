@@ -14,11 +14,11 @@
 
 Yujournal is a personal bookkeeping PWA designed for iPhone. It opens as a standalone Home Screen web app, without the App Store, a paid Apple developer account, or recurring app re-signing. The interface currently uses Simplified Chinese.
 
-**0.1.0 is an early release.** Automated tests and selected desktop browser flows have passed; remaining device checks are documented in [TESTING.md](docs/TESTING.md).
+**0.2.0 is an early release.** Automated tests and selected desktop browser flows have passed; remaining device checks are documented in [TESTING.md](docs/TESTING.md).
 
 ## Features
 
-- Record income/expenses from a sentence, iOS keyboard dictation, or locally recognized payment screenshots. Review before saving.
+- Record income/expenses from a sentence, press-and-hold local voice recognition or iOS keyboard dictation, or locally recognized payment screenshots. Review before saving.
 - Browse a selected day, month, or year with a calendar. Daily spending and overall assets have separate views.
 - Schedule weekly/monthly/yearly entries. Each template books automatically or awaits confirmation when the app next opens.
 - Set one opening asset balance and create savings plans; collect and wear badges to permanently unlock four themed worlds. The default theme supports system/light/dark modes.
@@ -39,6 +39,10 @@ Alternatively, download [Yujournal.mobileconfig](https://floki-u.github.io/Yujou
 ## Data and offline behavior
 
 The static host serves program/theme assets. Yujournal does not upload transactions, notes, screenshots, plans, passwords or backups. Records live in IndexedDB; there is no business account, analytics SDK or cloud ledger. The public Pages app does not require ChatGPT login.
+
+Profile names and avatars are editable and included in complete backups. Voice can split multiple entries for one reviewed batch save. Apple-signed [Shortcuts](docs/SHORTCUTS.zh-CN.md) provide screenshot sharing and a voice launcher.
+
+The optional local Chinese voice pack is about **98 MiB**. It is downloaded only on request; raw audio is processed in a local worker, never uploaded or retained. Recognition errors still require manual review.
 
 After the first successful online load, the Service Worker caches the shell. Screenshot recognition prepares about **7.5 MiB** once on demand, runs in one local Tesseract worker and retains images only if you opt in. OCR/font licenses are included.
 

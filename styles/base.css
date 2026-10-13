@@ -1459,19 +1459,36 @@ body.embedded #app {
   color: var(--leaf);
 }
 #toast {
-  position: absolute;
-  z-index: 50;
-  bottom: 100px;
-  left: 24px;
-  right: 24px;
-  padding: 14px 16px;
+  position: relative;
+  flex: none;
+  order: -1;
+  margin: 8px 18px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--leaf-dark);
-  color: var(--surface);
-  font-size: 12px;
-  text-align: center;
-  box-shadow: 0 6px 24px #21341a20;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+#toast > span {
+  flex: 1;
+}
+#toast .toast-close {
+  flex: none;
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 22px;
+  color: var(--secondary);
+}
+#toast .toast-action {
+  flex: none;
+  min-height: 40px;
+  margin: 0;
+}
+
 .offline-banner {
   font-size: 10px;
   color: var(--leaf);
