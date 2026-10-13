@@ -7,9 +7,19 @@ const root = resolve(import.meta.dirname, '..'),
   pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 await mkdir(out, { recursive: true });
 const archive = `Yujournal-v${pkg.version}-web.tar.gz`;
-const result = spawnSync('tar', ['-czf', resolve(out, archive), '-C', resolve(root, 'dist'), '.'], {
-  stdio: 'inherit',
-});
+// Preserve payload bytes but exclude the packager's local filesystem metadata.
+const metadataFlags =
+  process.platform === 'darwin'
+    ? ['--no-xattrs', '--format=ustar', '--uid=0', '--gid=0', '--uname=root', '--gname=root']
+    : ['--no-xattrs', '--format=ustar', '--owner=0', '--group=0', '--numeric-owner'];
+const result = spawnSync(
+  'tar',
+  [...metadataFlags, '-czf', resolve(out, archive), '-C', resolve(root, 'dist'), '.'],
+  {
+    stdio: 'inherit',
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+  },
+);
 if (result.status !== 0) throw Error('Could not package the built web app.');
 await cp(resolve(root, 'dist/Yujournal.mobileconfig'), resolve(out, 'Yujournal.mobileconfig'));
 await cp(resolve(root, 'docs/INSTALL.zh-CN.md'), resolve(out, 'INSTALL.zh-CN.md'));

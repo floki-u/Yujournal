@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createProfile } from '../scripts/profile.js';
 import { appURL } from '../scripts/config.js';
+import { gunzipSync } from 'node:zlib';
 const root = resolve(import.meta.dirname, '..');
 test('Web Clip is removable, URL-specific, deterministic and contains no management payload', () => {
   const url = 'https://example.com/ledger/',
@@ -59,4 +60,34 @@ test('portable build is reproducible and contains complete subdirectory-compatib
     assert.equal(names.includes(forbidden), false);
   const doc = await readFile(resolve(root, 'dist/styles/worlds.css'), 'utf8');
   assert.match(doc, /\.\.\/fonts\/PixelifySans\.ttf/);
+});
+
+test('release archive strips local owner IDs, extended attributes and AppleDouble metadata', async () => {
+  const result = spawnSync(process.execPath, ['scripts/package-release.js'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const tar = gunzipSync(await readFile(resolve(root, '.release/Yujournal-v0.1.0-web.tar.gz')));
+  let offset = 0,
+    files = 0;
+  const str = (header, a, b) => header.subarray(a, b).toString().replace(/\0.*$/s, '');
+  while (offset + 512 <= tar.length) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every((v) => v === 0)) break;
+    const name = str(header, 0, 100),
+      prefix = str(header, 345, 500),
+      path = prefix ? prefix + '/' + name : name;
+    assert.equal(parseInt(str(header, 108, 116), 8) || 0, 0);
+    assert.equal(parseInt(str(header, 116, 124), 8) || 0, 0);
+    assert.ok(['', 'root'].includes(str(header, 265, 297)));
+    assert.ok(['', 'root'].includes(str(header, 297, 329)));
+    assert.doesNotMatch(path, /(?:^|\/)\._|\.openai|\.git\/|node_modules|\.artifacts|\.yuji$/);
+    assert.notEqual(str(header, 156, 157), 'x');
+    assert.notEqual(str(header, 156, 157), 'g');
+    const size = parseInt(str(header, 124, 136), 8) || 0;
+    offset += 512 + Math.ceil(size / 512) * 512;
+    files++;
+  }
+  assert.ok(files > 50);
 });
