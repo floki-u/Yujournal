@@ -1,0 +1,130 @@
+docs/SHORTCUTS.zh-CN.md
+  bb0e46aaaf843eda 7-9
+README.md
+  bb0e46aaaf843eda 17-19
+test/voice.test.js
+  bb0e46aaaf843eda 37
+test/voice-download.test.js
+  bb0e46aaaf843eda 1-110,112-116
+docs/FAQ.zh-CN.md
+  bb0e46aaaf843eda 1-45
+src/lib/quick-input.js
+  bb0e46aaaf843eda 16-20
+CHANGELOG.md
+  bb0e46aaaf843eda 3-11
+install.html
+  bb0e46aaaf843eda 130-159,180,184-188
+index.html
+  bb0e46aaaf843eda 22-26,33-35
+src/app.js
+  bb0e46aaaf843eda 14,82-83,94,100,104-107,115-133,165-234,237,240-249,252-254,256,258-259,262-263,268-272,360,364,1210-1211,1213,1225,1314-1315,1318-1321
+test/quick-input.test.js
+  bb0e46aaaf843eda 33-42
+test/mobile-regression.test.js
+  bb0e46aaaf843eda 18-19,28,45-48,50,57,101-115,118,124,128,147-148,151
+src/lib/voice.js
+  bb0e46aaaf843eda 47-54,57-210,245,251-263,274-282,284-285
+README.zh-CN.md
+  bb0e46aaaf843eda 9-11
+styles/app.css
+  bb0e46aaaf843eda 5-67,417-440
+docs/TESTING.md
+  bb0e46aaaf843eda 41-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8-ntes.9",
+  "base_commit_sha": "d2b73c0717c3fa05052ad8a8c104f389f19daacd",
+  "prompts": {
+    "bb0e46aaaf843eda": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12e00-df96-7390-bf75-227093e8f34e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "wangchao",
+      "messages": [],
+      "total_additions": 732,
+      "total_deletions": 152,
+      "accepted_lines": 691,
+      "overriden_lines": 2,
+      "per_file_stats": {
+        "docs/SHORTCUTS.zh-CN.md": {
+          "additions": 3,
+          "deletions": 1,
+          "accepted_lines": 3
+        },
+        "test/quick-input.test.js": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "CHANGELOG.md": {
+          "additions": 9,
+          "accepted_lines": 9
+        },
+        "test/voice-download.test.js": {
+          "additions": 128,
+          "deletions": 15,
+          "accepted_lines": 115,
+          "overriden_lines": 1
+        },
+        "README.md": {
+          "additions": 3,
+          "deletions": 1,
+          "accepted_lines": 3
+        },
+        "README.zh-CN.md": {
+          "additions": 3,
+          "deletions": 1,
+          "accepted_lines": 3
+        },
+        "test/mobile-regression.test.js": {
+          "additions": 26,
+          "deletions": 4,
+          "accepted_lines": 30,
+          "overriden_lines": 1
+        },
+        "index.html": {
+          "additions": 3,
+          "deletions": 2,
+          "accepted_lines": 8
+        },
+        "test/voice.test.js": {
+          "additions": 1,
+          "accepted_lines": 1
+        },
+        "docs/TESTING.md": {
+          "additions": 10,
+          "accepted_lines": 10
+        },
+        "src/lib/quick-input.js": {
+          "additions": 5,
+          "accepted_lines": 5
+        },
+        "src/lib/voice.js": {
+          "additions": 227,
+          "deletions": 63,
+          "accepted_lines": 191
+        },
+        "docs/FAQ.zh-CN.md": {
+          "additions": 45,
+          "accepted_lines": 45
+        },
+        "install.html": {
+          "additions": 18,
+          "deletions": 1,
+          "accepted_lines": 36
+        },
+        "styles/app.css": {
+          "additions": 87,
+          "accepted_lines": 87
+        },
+        "src/app.js": {
+          "additions": 154,
+          "deletions": 64,
+          "accepted_lines": 135
+        }
+      }
+    }
+  }
+}
