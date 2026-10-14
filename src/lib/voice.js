@@ -5,11 +5,37 @@ let metadata = null,
   worker = null,
   request = null,
   sequence = 0;
-export async function voiceManifest() {
+// Cache APIs and serviceWorker.ready do not accept a cancellation signal.
+// Bound those waits too, so leaving the sheet never strands its caller.
+function waitFor(promise, signal) {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const settle = (fn, value) => {
+      signal.removeEventListener('abort', abort);
+      fn(value);
+    };
+    const abort = () => settle(reject, signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    Promise.resolve(promise).then(
+      (value) => settle(resolve, value),
+      (error) => settle(reject, error),
+    );
+    if (signal.aborted) abort();
+  });
+}
+function deadline(signal, milliseconds) {
+  const timeout = AbortSignal.timeout(milliseconds);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+export async function voiceManifest(signal = null) {
   if (!metadata) {
-    const response = await fetch(new URL('resource-manifest.json', base));
+    const limit = deadline(signal, 15000);
+    const response = await waitFor(
+      fetch(new URL('resource-manifest.json', base), { signal: limit }),
+      limit,
+    );
     if (!response.ok) throw Error('语音包清单暂不可用。');
-    metadata = await response.json();
+    metadata = await waitFor(response.json(), limit);
   }
   return metadata;
 }
@@ -22,50 +48,91 @@ export async function voiceReady() {
 }
 export async function prepareVoice(progress = () => {}, signal = null) {
   if (!('serviceWorker' in navigator)) throw Error('请在支持离线缓存的 Safari 中打开。');
-  await navigator.serviceWorker.ready;
-  if (!navigator.serviceWorker.controller) throw Error('离线外壳尚未准备，请重新打开后再试。');
-  const meta = await voiceManifest(),
+  signal?.throwIfAborted();
+  progress({ phase: 'checking', percent: 0, loaded: 0, total: 0, completed: 0, files: 0 });
+  const startLimit = deadline(signal, 15000);
+  await waitFor(navigator.serviceWorker.ready, startLimit);
+  if (!navigator.serviceWorker.controller)
+    throw Error('离线外壳尚未准备，请关闭余记后重新打开再试。');
+  const meta = await voiceManifest(signal),
     files = meta.files.filter((f) => !f.path.startsWith('licenses/')),
     total = files.reduce((n, f) => n + f.bytes, 0),
-    cache = await caches.open(VOICE_CACHE);
-  let loaded = 0;
+    cache = await waitFor(caches.open(VOICE_CACHE), deadline(signal, 15000));
+  let loaded = 0,
+    completed = 0,
+    lastProgress = 0;
+  const report = (phase, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastProgress < 120) return;
+    lastProgress = now;
+    progress({
+      phase,
+      percent: phase === 'ready' ? 100 : Math.min(99, Math.floor((loaded / total) * 100)),
+      loaded,
+      total,
+      completed,
+      files: files.length,
+    });
+  };
   for (const file of files) {
+    signal?.throwIfAborted();
+    const limit = deadline(signal, 120000);
     const url = new URL(file.path, base);
-    if (await cache.match(url)) {
+    report('checking', true);
+    if (await waitFor(cache.match(url), limit)) {
       loaded += file.bytes;
+      completed++;
+      report('cached', true);
       continue;
     }
-    const response = await fetch(url, {
-      cache: 'no-store',
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(120000)])
-        : AbortSignal.timeout(120000),
-    });
+    report('connecting', true);
+    const response = await waitFor(
+      fetch(url, {
+        cache: 'no-store',
+        signal: limit,
+      }),
+      limit,
+    );
     if (
       !response.ok ||
       response.redirected ||
       response.headers.get('content-type')?.includes('text/html')
     )
       throw Error('语音包下载失败，已有资源保留，可重试。');
+    if (!response.body) throw Error('语音资源为空，请重试下载。');
+    let bytes = 0;
     const stream = response.body.pipeThrough(
       new TransformStream({
         transform(chunk, controller) {
+          bytes += chunk.byteLength;
           loaded += chunk.byteLength;
-          progress({ percent: Math.min(100, Math.round((loaded / total) * 100)), loaded, total });
+          report('downloading');
           controller.enqueue(chunk);
         },
+        flush() {
+          if (bytes !== file.bytes) throw Error('语音资源未下载完整，已完成的文件保留，请重试。');
+          report('saving', true);
+        },
       }),
+      { signal: limit },
     );
     const headers = new Headers(response.headers);
     headers.delete('Content-Encoding');
     headers.delete('Content-Length');
-    await cache.put(url, new Response(stream, { headers }));
+    await waitFor(cache.put(url, new Response(stream, { headers })), limit);
+    completed++;
+    report('saved', true);
   }
-  await cache.put(
-    new URL('resource-manifest.json', base),
-    new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }),
+  signal?.throwIfAborted();
+  report('saving', true);
+  await waitFor(
+    cache.put(
+      new URL('resource-manifest.json', base),
+      new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }),
+    ),
+    deadline(signal, 15000),
   );
-  progress({ percent: 100, loaded: total, total });
+  report('ready', true);
 }
 export function releaseVoice() {
   sequence++;

@@ -98,6 +98,9 @@ self.addEventListener('fetch', (e) => {
       if (
         valid(r) &&
         !r.headers.get('content-type')?.includes('text/html') &&
+        // The voice downloader owns streaming/progress and cache writes. Waiting
+        // for a second Cache.put here hides all bytes until a large model finishes.
+        cacheName !== VOICE &&
         (cacheName !== CORE || FILES.includes(path))
       )
         await cache.put(new URL(path, self.registration.scope), r.clone());

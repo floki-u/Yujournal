@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
-function harness({ redirect = false } = {}) {
+function harness({ redirect = false, responseFor = () => null } = {}) {
   const handlers = {},
     maps = new Map(),
     scope = 'https://test.yuji.local/',
@@ -19,7 +19,10 @@ function harness({ redirect = false } = {}) {
       if (!maps.has(n)) maps.set(n, new Map());
       const map = maps.get(n);
       return {
-        put: async (k, v) => map.set(abs(k), v.clone()),
+        put: async (k, v) => {
+          const bytes = await v.arrayBuffer();
+          map.set(abs(k), new Response(bytes, { headers: v.headers }));
+        },
         match: async (k) => map.get(abs(k))?.clone(),
       };
     },
@@ -28,6 +31,8 @@ function harness({ redirect = false } = {}) {
     const url = abs(input);
     requests.push(url);
     if (offline) throw Error('offline');
+    const custom = responseFor(url);
+    if (custom) return custom;
     const pathname = new URL(url).pathname;
     const isHTML = pathname === '/' || pathname.endsWith('.html');
     const r = new Response(isHTML ? 'YUJI SHELL' : pathname, {
@@ -110,4 +115,30 @@ test('auth redirects cannot be accepted as an installed script shell', async () 
   const h = harness({ redirect: true });
   await assert.rejects(() => h.event('install'), /Incomplete shell/);
   assert.equal(h.skipped(), false);
+});
+
+test('voice downloads expose the response before the large body finishes so progress can stream', async () => {
+  let stream;
+  const body = new ReadableStream({
+    start(controller) {
+      stream = controller;
+      controller.enqueue(new Uint8Array([1, 2, 3]));
+    },
+  });
+  const h = harness({
+    responseFor: (url) => (url.includes('vendor/voice/') ? new Response(body) : null),
+  });
+  const response = h.request(
+    'vendor/voice/models/whisper-base/onnx/decoder_model_merged_quantized.onnx',
+  );
+  try {
+    const accessible = await Promise.race([
+      response.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 40)),
+    ]);
+    assert.equal(accessible, true, 'progress cannot see bytes while SW waits for Cache.put');
+  } finally {
+    stream.close();
+    await response;
+  }
 });

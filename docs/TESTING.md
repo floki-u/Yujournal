@@ -32,3 +32,9 @@ The actual navigation/startup/image-save code paths have regression tests for th
 The local Whisper-base model was run against a synthetic Mandarin recording on the desktop CPU, then its optimized encoder was also initialized and executed through the browser-oriented WASM backend. The four sample amounts entered the multi-entry parser. This is not an iPhone accuracy or latency benchmark. Names can still be misrecognized; the confirmation list remains required.
 
 Remaining physical checks: microphone permission and hold/cancel on iOS, cold offline speech, actual payment screenshots, signed shortcut import/execution, Safari/Web Clip clipboard handoff, and Photos sharing. No private screenshots, recordings or device diagnostics are included in source.
+
+## v0.2.1 download regression
+
+Four regressions were observed failing before the fix: a Service Worker withheld a large response while `Cache.put` consumed it, an unready worker wait did not cancel, entry tabs stayed locked during preparation, and page navigation stayed locked after closing a pending download. Tests also cover resumed byte counts, complete cache writes before success, truncated responses, stale readiness checks and late callbacks from cancelled downloads.
+
+The local in-app browser was exercised with real model files and a throttled HTTP server: progress advanced before the model finished, switching to text worked during download, and closing a restarted download left the My navigation responsive. A separate fast local download reached the explicit ready state with the microphone button enabled. This is desktop browser evidence; the iPhone update and on-device recognition remain physical checks.

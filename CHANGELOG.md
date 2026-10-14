@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-10-14
+
+- Return uncached voice responses immediately; the optional downloader owns streaming and cache writes, so large model files show live progress.
+- Release the global action lock while preparing speech resources. Switching entry modes or closing the sheet cancels preparation without freezing navigation.
+- Bound readiness, connection and cache waits; preserve completed files for retries and reject incomplete responses.
+- Show a progress bar, downloaded bytes/resource count and explicit ready/retry states; ignore callbacks from cancelled downloads and stale readiness checks.
+
 ## 0.2.0 — 2026-10-13
 
 - Fix repeated offline-ready notifications and reset the actual main/dialog scroll containers on navigation.

@@ -77,7 +77,8 @@ let voiceCapture = null,
   voicePointer = null,
   voiceStartY = 0,
   voiceCancelled = false,
-  voiceDownload = null;
+  voiceDownload = null,
+  voiceCheckSequence = 0;
 function voiceState(message) {
   const node = document.querySelector('#voice-status');
   if (node) node.textContent = message;
@@ -87,29 +88,35 @@ function voiceState(message) {
 
 function voiceUI() {
   openSheet(
-    `${tabs()}<p class="helper">录音和识别都在本机。一次可以说多笔：午饭 36 元、咖啡 28 元、工资到账 20000 元。识别后核对清单，一次确认。</p><button class="voice-hold" data-voice-control type="button" aria-label="按住说话">${icon('mic')}<strong>按住说话</strong><span>松开整理 · 上滑取消</span></button><p id="voice-status" class="voice-status" role="status">正在检查本机语音包…</p><button id="prepare-voice" class="primary" data-action="prepareVoice" hidden>准备本机语音包（约 98 MiB）</button><p class="helper">首次需要联网准备约 98 MiB 的中文语音包，之后离线使用。本机识别可能需要等待；不会保存原始录音，也不会上传录音。</p><div class="entry-fallback"><button class="text-button" data-action="entryMode" data-value="text">改用文本 / 键盘听写</button></div>`,
+    `${tabs()}<p class="helper">录音和识别都在本机。一次可以说多笔：午饭 36 元、咖啡 28 元、工资到账 20000 元。识别后核对清单，一次确认。</p><button class="voice-hold" data-voice-control type="button" aria-label="按住说话">${icon('mic')}<strong>按住说话</strong><span>松开整理 · 上滑取消</span></button><p id="voice-status" class="voice-status" role="status">正在检查本机语音包…</p><progress id="voice-progress" class="voice-progress" max="100" value="0" aria-label="语音包下载进度" hidden></progress><p id="voice-download-detail" class="helper" hidden></p><button id="prepare-voice" class="primary" data-action="prepareVoice" hidden>准备本机语音包（约 98 MiB）</button><p class="helper">首次需要联网准备约 98 MiB 的中文语音包，之后离线使用。下载时可切换录入方式；关闭后保留已完成文件，下次继续。本机识别不会保存或上传原始录音。</p><div class="entry-fallback"><button class="text-button" data-action="entryMode" data-value="text">改用文本 / 键盘听写</button></div>`,
     '长按语音记账',
   );
   const button = document.querySelector('[data-voice-control]');
+  const check = ++voiceCheckSequence;
   button.disabled = true;
   voiceReady()
     .then((ready) => {
-      if (!button.isConnected) return;
+      if (!button.isConnected || check !== voiceCheckSequence) return;
       button.disabled = !ready;
       document.querySelector('#prepare-voice').hidden = ready;
       voiceState(
-        ready ? '按住说话，松开后自动整理。' : '首次需要准备语音包，下载后无需再联网识别。',
+        ready
+          ? '语音包已准备，可离线使用。按住说话，松开后自动整理。'
+          : '首次需要准备语音包，下载后无需再联网识别。',
       );
     })
     .catch(() => {
-      if (button.isConnected) {
+      if (button.isConnected && check === voiceCheckSequence) {
         document.querySelector('#prepare-voice').hidden = false;
         voiceState('需要联网准备本机语音包。');
       }
     });
   voiceCapture = new VoiceCapture({
-    onState: voiceState,
+    onState: (message) => {
+      if (button.isConnected) voiceState(message);
+    },
     onError: (e) => {
+      if (!button.isConnected) return;
       button.classList.remove('recording');
       button.disabled = false;
       voiceState(e.name === 'NotAllowedError' ? '麦克风未获授权，请允许后再按住说话。' : e.message);
@@ -129,25 +136,57 @@ function voiceUI() {
   });
 }
 async function prepareVoiceUI() {
-  voiceDownload?.abort();
-  voiceDownload = new AbortController();
+  if (voiceDownload) return;
+  const download = new AbortController(),
+    owner = entry;
+  voiceCheckSequence++;
+  voiceDownload = download;
   const button = document.querySelector('#prepare-voice');
   if (button) button.disabled = true;
   try {
-    await prepareVoice(
-      (p) =>
-        voiceState(
-          `准备本机语音包 ${p.percent}%（${(p.loaded / 1024 / 1024).toFixed(1)} / ${(p.total / 1024 / 1024).toFixed(1)} MiB）`,
-        ),
-      voiceDownload.signal,
-    );
-    if (entry?.mode === 'voice') voiceUI();
-    else toast('本机语音包已准备，可长按说话。');
-  } catch (e) {
-    if (e.name !== 'AbortError') error(e);
-    if (button?.isConnected) button.disabled = false;
-  } finally {
+    await prepareVoice((p) => {
+      if (voiceDownload !== download || entry !== owner || download.signal.aborted) return;
+      const bar = document.querySelector('#voice-progress'),
+        detail = document.querySelector('#voice-download-detail');
+      if (bar) {
+        bar.hidden = false;
+        bar.value = p.percent;
+      }
+      if (detail) {
+        detail.hidden = false;
+        detail.textContent = p.total
+          ? `${(p.loaded / 1024 / 1024).toFixed(1)} / ${(p.total / 1024 / 1024).toFixed(1)} MiB · 已完成 ${p.completed} / ${p.files} 个资源`
+          : '正在检查离线服务；可随时关闭或切换入口。';
+      }
+      voiceState(
+        p.phase === 'checking'
+          ? '正在检查已有语音资源…'
+          : p.phase === 'connecting'
+            ? `正在连接下载 ${p.percent}%…`
+            : p.phase === 'saving'
+              ? `正在保存到本机 ${p.percent}%…`
+              : `下载语音包 ${p.percent}%`,
+      );
+    }, download.signal);
+    if (voiceDownload !== download || download.signal.aborted || entry !== owner) return;
     voiceDownload = null;
+    if (entry?.mode === 'voice') voiceUI();
+  } catch (e) {
+    if (voiceDownload !== download || download.signal.aborted) return;
+    const message =
+      e.name === 'TimeoutError'
+        ? '连接或保存超时，已完成文件保留，请重试下载。'
+        : e.name === 'QuotaExceededError'
+          ? '本机可用空间不足，请腾出空间后重试。'
+          : e.message;
+    voiceState('语音包未准备完成。');
+    error(message);
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.textContent = '重试下载（保留已完成文件）';
+    }
+  } finally {
+    if (voiceDownload === download) voiceDownload = null;
   }
 }
 let profilePictureURL = null,
@@ -427,6 +466,8 @@ async function commit(action, options = {}) {
   return state;
 }
 function entryStart(mode = 'voice', value = '') {
+  voiceDownload?.abort();
+  voiceDownload = null;
   voiceCapture?.cancel();
   voiceCapture = null;
   revoke();
@@ -1184,7 +1225,8 @@ async function execute(action, el) {
       parseQuickInput();
       break;
     case 'prepareVoice':
-      await prepareVoiceUI();
+      // A resource download is not a ledger mutation: do not hold the global action lock.
+      void prepareVoiceUI();
       break;
     case 'clearVoice':
       voiceCapture?.cancel();
