@@ -11,6 +11,7 @@ import {
   voiceReady,
   prepareVoice,
   voiceManifest,
+  voiceStorage,
   releaseVoice,
   VOICE_CACHE,
 } from './lib/voice.js';
@@ -78,6 +79,8 @@ let voiceCapture = null,
   voiceStartY = 0,
   voiceCancelled = false,
   voiceDownload = null,
+  voiceDownloadProgress = null,
+  voiceDownloadError = '',
   voiceCheckSequence = 0;
 function voiceState(message) {
   const node = document.querySelector('#voice-status');
@@ -88,15 +91,20 @@ function voiceState(message) {
 
 function voiceUI() {
   openSheet(
-    `${tabs()}<p class="helper">录音和识别都在本机。一次可以说多笔：午饭 36 元、咖啡 28 元、工资到账 20000 元。识别后核对清单，一次确认。</p><button class="voice-hold" data-voice-control type="button" aria-label="按住说话">${icon('mic')}<strong>按住说话</strong><span>松开整理 · 上滑取消</span></button><p id="voice-status" class="voice-status" role="status">正在检查本机语音包…</p><progress id="voice-progress" class="voice-progress" max="100" value="0" aria-label="语音包下载进度" hidden></progress><p id="voice-download-detail" class="helper" hidden></p><button id="prepare-voice" class="primary" data-action="prepareVoice" hidden>准备本机语音包（约 98 MiB）</button><p class="helper">首次需要联网准备约 98 MiB 的中文语音包，之后离线使用。下载时可切换录入方式；关闭后保留已完成文件，下次继续。本机识别不会保存或上传原始录音。</p><div class="entry-fallback"><button class="text-button" data-action="entryMode" data-value="text">改用文本 / 键盘听写</button></div>`,
+    `${tabs()}<p class="helper">录音和识别都在本机。一次可以说多笔：午饭 36 元、咖啡 28 元、工资到账 20000 元。识别后核对清单，一次确认。</p><button class="voice-hold" data-voice-control type="button" aria-label="按住说话">${icon('mic')}<strong>按住说话</strong><span>松开整理 · 上滑取消</span></button><p id="voice-status" class="voice-status" role="status">正在检查本机语音包…</p><progress id="voice-progress" class="voice-progress" max="100" value="0" aria-label="语音包下载进度" hidden></progress><p id="voice-download-detail" class="helper" hidden></p><button id="prepare-voice" class="primary" data-action="prepareVoice" hidden>下载本机语音包（约 98 MiB）</button><button id="pause-voice" class="secondary shortcut-link" data-action="pauseVoice" hidden>暂停下载</button><p class="helper">关闭浮层或切换页面会继续下载；点“暂停”才停止。锁屏、切到别的 App 或退出时，iOS 可能中断下载，重开后点继续即可。已完成片段会保留，完成后合并清理，只保留一份。录音在本机识别，不保存、不上传。</p><div class="entry-fallback"><button class="text-button" data-action="entryMode" data-value="text">改用文本 / 键盘听写</button></div>`,
     '长按语音记账',
   );
   const button = document.querySelector('[data-voice-control]');
   const check = ++voiceCheckSequence;
   button.disabled = true;
+  paintVoiceDownload();
   voiceReady()
     .then((ready) => {
       if (!button.isConnected || check !== voiceCheckSequence) return;
+      if (voiceDownload) {
+        paintVoiceDownload();
+        return;
+      }
       button.disabled = !ready;
       document.querySelector('#prepare-voice').hidden = ready;
       voiceState(
@@ -104,6 +112,25 @@ function voiceUI() {
           ? '语音包已准备，可离线使用。按住说话，松开后自动整理。'
           : '首次需要准备语音包，下载后无需再联网识别。',
       );
+      if (!ready && (voiceDownloadProgress || voiceDownloadError)) paintVoiceDownload();
+      if (!ready && !voiceDownloadProgress) {
+        voiceStorage()
+          .then((saved) => {
+            if (!button.isConnected || check !== voiceCheckSequence || voiceDownload) return;
+            if (!saved.completeBytes && !saved.partialBytes) return;
+            const loaded = saved.completeBytes + saved.partialBytes;
+            voiceDownloadProgress = {
+              phase: 'paused',
+              loaded,
+              total: saved.total,
+              files: saved.files,
+              completed: saved.completed,
+              percent: Math.min(99, Math.floor((loaded / saved.total) * 100)),
+            };
+            paintVoiceDownload();
+          })
+          .catch(() => {});
+      }
     })
     .catch(() => {
       if (button.isConnected && check === voiceCheckSequence) {
@@ -135,56 +162,114 @@ function voiceUI() {
     },
   });
 }
-async function prepareVoiceUI() {
-  if (voiceDownload) return;
-  const download = new AbortController(),
-    owner = entry;
-  voiceCheckSequence++;
-  voiceDownload = download;
-  const button = document.querySelector('#prepare-voice');
-  if (button) button.disabled = true;
-  try {
-    await prepareVoice((p) => {
-      if (voiceDownload !== download || entry !== owner || download.signal.aborted) return;
-      const bar = document.querySelector('#voice-progress'),
-        detail = document.querySelector('#voice-download-detail');
-      if (bar) {
-        bar.hidden = false;
-        bar.value = p.percent;
-      }
-      if (detail) {
-        detail.hidden = false;
-        detail.textContent = p.total
-          ? `${(p.loaded / 1024 / 1024).toFixed(1)} / ${(p.total / 1024 / 1024).toFixed(1)} MiB · 已完成 ${p.completed} / ${p.files} 个资源`
-          : '正在检查离线服务；可随时关闭或切换入口。';
-      }
-      voiceState(
-        p.phase === 'checking'
+function paintVoiceDownload() {
+  const p = voiceDownloadProgress,
+    active = !!voiceDownload,
+    paused = p?.phase === 'paused',
+    ready = p?.phase === 'ready';
+  let message = voiceDownloadError
+    ? '下载中断，已保存片段可继续。'
+    : paused
+      ? '语音包已暂停，已保存片段保留。'
+      : ready
+        ? '语音包已准备，可离线使用。按住说话，松开后自动整理。'
+        : !p?.total
           ? '正在检查已有语音资源…'
           : p.phase === 'connecting'
             ? `正在连接下载 ${p.percent}%…`
             : p.phase === 'saving'
               ? `正在保存到本机 ${p.percent}%…`
-              : `下载语音包 ${p.percent}%`,
-      );
+              : `下载语音包 ${p.percent}%`;
+  const banner = document.querySelector('#voice-download-bar');
+  if (banner) {
+    banner.hidden = !active && !paused && !voiceDownloadError;
+    if (!banner.hidden) {
+      const summary = document.querySelector('#voice-download-message'),
+        pause = document.querySelector('#voice-background-pause'),
+        resume = document.querySelector('#voice-background-continue');
+      if (summary) summary.textContent = message;
+      if (pause) pause.hidden = !active;
+      if (resume) resume.hidden = active;
+    }
+  }
+  if (!sheet.open || entry?.mode !== 'voice') return;
+  const button = document.querySelector('#prepare-voice'),
+    pause = document.querySelector('#pause-voice'),
+    bar = document.querySelector('#voice-progress'),
+    detail = document.querySelector('#voice-download-detail');
+  if (button) {
+    button.hidden = ready || (!p && !voiceDownloadError && !active);
+    button.disabled = active;
+    button.textContent =
+      paused || voiceDownloadError ? '继续下载（读取已保存片段）' : '下载本机语音包（约 98 MiB）';
+  }
+  if (pause) pause.hidden = !active;
+  if (bar) {
+    bar.hidden = !p?.total;
+    bar.value = p?.percent || 0;
+  }
+  if (detail) {
+    detail.hidden = !p?.total;
+    detail.textContent = p?.total
+      ? `${(p.loaded / 1024 / 1024).toFixed(1)} / ${(p.total / 1024 / 1024).toFixed(1)} MiB · 已完成 ${p.completed} / ${p.files} 个资源`
+      : '';
+  }
+  if (p || voiceDownloadError || active) voiceState(message);
+  if (voiceDownloadError) error(voiceDownloadError);
+  else if (active) {
+    const node = document.querySelector('#entry-error');
+    if (node) node.hidden = true;
+  }
+  if (ready) {
+    const hold = document.querySelector('[data-voice-control]');
+    if (hold) hold.disabled = false;
+  }
+}
+function pauseVoiceDownload() {
+  voiceDownload?.abort();
+  voiceDownload = null;
+  voiceCheckSequence++;
+  if (voiceDownloadProgress) voiceDownloadProgress = { ...voiceDownloadProgress, phase: 'paused' };
+  paintVoiceDownload();
+}
+async function prepareVoiceUI() {
+  if (voiceDownload) return;
+  const download = new AbortController();
+  voiceCheckSequence++;
+  voiceDownload = download;
+  voiceDownloadProgress = {
+    phase: 'checking',
+    percent: 0,
+    loaded: 0,
+    total: 0,
+    completed: 0,
+    files: 0,
+  };
+  voiceDownloadError = '';
+  paintVoiceDownload();
+  try {
+    await prepareVoice((p) => {
+      if (voiceDownload !== download || download.signal.aborted) return;
+      voiceDownloadProgress = p;
+      paintVoiceDownload();
     }, download.signal);
-    if (voiceDownload !== download || download.signal.aborted || entry !== owner) return;
+    if (voiceDownload !== download || download.signal.aborted) return;
     voiceDownload = null;
-    if (entry?.mode === 'voice') voiceUI();
+    paintVoiceDownload();
+    if (!sheet.open || entry?.mode !== 'voice') toast('本机语音包已准备，可长按说话。');
   } catch (e) {
     if (voiceDownload !== download || download.signal.aborted) return;
-    const message =
+    voiceDownload = null;
+    voiceDownloadError =
       e.name === 'TimeoutError'
         ? '连接或保存超时，已完成文件保留，请重试下载。'
         : e.name === 'QuotaExceededError'
           ? '本机可用空间不足，请腾出空间后重试。'
-          : e.message;
-    voiceState('语音包未准备完成。');
-    error(message);
-    if (button?.isConnected) {
-      button.disabled = false;
-      button.textContent = '重试下载（保留已完成文件）';
-    }
+          : e.name === 'TypeError'
+            ? '网络连接中断，已保存的文件和片段保留，请继续下载。'
+            : e.message;
+    paintVoiceDownload();
+    if (sheet.open && entry?.mode === 'voice') error(voiceDownloadError);
   } finally {
     if (voiceDownload === download) voiceDownload = null;
   }
@@ -261,8 +346,6 @@ function revoke() {
 function close() {
   voiceCapture?.cancel();
   voiceCapture = null;
-  voiceDownload?.abort();
-  voiceDownload = null;
   ocrSequence++;
   quoteSequence++;
   releaseOCR();
@@ -274,10 +357,11 @@ function close() {
 }
 function openSheet(html, title) {
   document.querySelector('#sheet-content').innerHTML =
-    `<div class="sheet-handle"></div><div class="sheet-inner"><div class="sheet-head"><h2>${esc(title)}</h2><button class="icon-button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${html}<div id="entry-error" class="error" role="alert" hidden></div></div>`;
+    `<div class="sheet-handle"></div><div class="sheet-inner"><div class="sheet-head"><h2 id="sheet-title" tabindex="-1" autofocus>${esc(title)}</h2><button class="icon-button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${html}<div id="entry-error" class="error" role="alert" hidden></div></div>`;
   sheet.scrollTop = 0;
   document.querySelector('#sheet-content').scrollTop = 0;
   if (!sheet.open) sheet.showModal();
+  document.querySelector('#sheet-title').focus({ preventScroll: true });
 }
 const field = (label, name, value = '', type = 'text', extra = '') =>
   `<label class="field"><span>${label}</span><input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
@@ -466,8 +550,6 @@ async function commit(action, options = {}) {
   return state;
 }
 function entryStart(mode = 'voice', value = '') {
-  voiceDownload?.abort();
-  voiceDownload = null;
   voiceCapture?.cancel();
   voiceCapture = null;
   revoke();
@@ -527,7 +609,7 @@ function entryUI() {
     return;
   }
   openSheet(
-    `${tabs()}${entry.mode === 'ocr' ? `<button class="upload-area" data-action="uploadPhoto">${icon('photo')}<span>选择付款截图</span><small>微信 · 支付宝 · 银行付款凭证</small></button><input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden><p class="helper">首次准备约 7.5 MiB 本机识别资源，完成后可离线使用。截图不会上传；保存附件由你选择。过长截图请先裁剪付款区域。</p><div id="ocr-progress" class="progress-status" hidden></div>` : '<p class="helper">点输入框，用 iPhone 键盘麦克风听写。这里在本机整理金额和日期。</p>'}<textarea id="entry-text" class="entry-text" aria-label="一句话记账" placeholder="今天股票亏了 1000 元">${esc(entry.raw)}</textarea><p class="helper">也可以粘贴截图文字。一句话中有多个金额时，需要你选择。</p><button class="primary" data-action="parseEntry">${icon('spark')} 整理成账目</button>`,
+    `${tabs()}${entry.mode === 'ocr' ? `<button class="upload-area" data-action="uploadPhoto">${icon('photo')}<span>选择付款截图</span><small>微信 · 支付宝 · 银行付款凭证</small></button><input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden><p class="helper">首次准备约 7.5 MiB 本机识别资源，完成后可离线使用。截图不会上传；保存附件由你选择。过长截图请先裁剪付款区域。</p><div id="ocr-progress" class="progress-status" hidden></div>` : '<p class="helper">点输入框，用 iPhone 键盘麦克风听写。这里在本机整理金额和日期。</p>'}<textarea id="entry-text" class="entry-text" aria-label="一句话记账" placeholder="今天股票亏了 1000 元">${esc(entry.raw)}</textarea><p class="helper">也可以粘贴截图文字。可一次整理多笔收支，保存前统一核对金额和日期。</p><button class="primary" data-action="parseEntry">${icon('spark')} 整理成账目</button>`,
     '记一笔',
   );
 }
@@ -1125,9 +1207,10 @@ function ratesPanel() {
 }
 async function storageUI() {
   const estimate = await navigator.storage?.estimate?.(),
-    ready = await ocrReady().catch(() => false);
+    ready = await ocrReady().catch(() => false),
+    speech = await voiceStorage().catch(() => null);
   openSheet(
-    `<p class="formula">本机使用约 ${estimate?.usage ? (estimate.usage / 1024 / 1024).toFixed(1) + ' MiB' : '暂无法统计'}<br>${L.active(state).length} 笔收支 · ${state.transactions.filter((t) => t.deletedAt).length} 笔可恢复删除记录<br>离线截图识别：${ready ? '已准备' : '尚未下载'}</p><p class="helper">应用外壳自动缓存。特殊主题打开后缓存图片；像素字体按需加载。清理识别资源只影响截图 OCR，账目和备份不受影响。</p><button class="primary" data-action="prepareOcr">准备离线识别（约 7.5 MiB）</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearOcr">清理识别资源缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearVoice">清理本机语音包缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="persistent">请求浏览器持久储存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="trash">查看已删除记录</button><div id="ocr-progress" class="progress-status" hidden></div><p class="safety-note">浏览器可能清理本机网站数据。持久储存由系统决定，不能代替 .yuji 文件备份。每次换机、清除浏览数据前先导出。</p>`,
+    `<p class="formula">本机使用约 ${estimate?.usage ? (estimate.usage / 1024 / 1024).toFixed(1) + ' MiB' : '暂无法统计'}<br>${L.active(state).length} 笔收支 · ${state.transactions.filter((t) => t.deletedAt).length} 笔可恢复删除记录<br>离线截图识别：${ready ? '已准备' : '尚未下载'}<br>语音完整资源：${speech ? (speech.completeBytes / 1024 / 1024).toFixed(1) + ' MiB' : '暂无法统计'}<br>语音续传片段：${speech ? (speech.partialBytes / 1024 / 1024).toFixed(1) + ' MiB · ' + speech.parts + ' 段' : '暂无法统计'}</p><p class="helper">语音资源保存在这台设备的网页缓存中。续传片段在合并完成后清理；合并期间会短暂同时保存片段和完整文件。下面的清理按钮会删除完整语音包和续传片段，不影响账目、头像或备份。若要删除主屏幕入口，建议先在这里清理资源；只删除图标不保证网页缓存同时释放。</p><button class="primary" data-action="prepareOcr">准备离线识别（约 7.5 MiB）</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearOcr">清理识别资源缓存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="clearVoice">清理本机语音包与续传片段</button><button class="secondary" style="width:100%;margin-top:12px" data-action="persistent">请求浏览器持久储存</button><button class="secondary" style="width:100%;margin-top:12px" data-action="trash">查看已删除记录</button><div id="ocr-progress" class="progress-status" hidden></div><p class="safety-note">浏览器可能清理本机网站数据。持久储存由系统决定，不能代替 .yuji 文件备份。每次换机、清除浏览数据前先导出。</p>`,
     '本机储存',
   );
 }
@@ -1139,7 +1222,7 @@ function install() {
 }
 function shortcuts() {
   openSheet(
-    `<p class="helper">不是另外记一遍账：一次添加快捷指令，以后在截图分享菜单触发识别，回到余记一次确认。</p><label class="toggle-row"><span>在首页显示“接收快捷输入”</span><input id="quick-input-enabled" type="checkbox" ${state.preferences.shortcutsEnabled ? 'checked' : ''}></label><a class="primary" href="${shortcutURL('screenshot', document.baseURI)}">添加截图记账快捷指令</a><a class="secondary shortcut-link" href="${shortcutURL('voice', document.baseURI)}">添加本机语音入口</a><p class="helper">iOS 会打开或下载已签名的 .shortcut 文件，点“添加快捷指令”完成一次配置。若只保存到“文件”，在那里打开即可。开关只管理余记的接收按钮，网页不能静默修改系统配置或检测安装状态。</p><div class="formula">付款截图 → 分享 → “余记 · 截图记账” → 本机提取文字 → 核对清单 → 全部确认入账。<br><br>如果打开的是 Safari，而你的账本在主屏幕余记，请回到余记点“接收快捷输入”，无需再手输金额。</div><button class="secondary" style="width:100%" data-action="receiveQuickInput">接收快捷输入</button><p class="helper">本机语音入口可放进苹果快捷指令小组件，进入余记后按住说话。PWA 无法后台监听每次截图；未确认前不会偷偷入账。</p>`,
+    `<p class="helper">只安装一次。截图指令处理图片里的文字；语音指令快速打开余记的长按说话入口。</p><div class="shortcut-card"><h3>截图记账</h3><p class="helper">在照片或截图预览点分享，运行“余记 · 截图记账”，再回余记核对金额，一次确认。</p><a class="primary shortcut-link" href="${shortcutURL('screenshot', document.baseURI)}" download="Yujournal-Screenshot.shortcut" target="_blank" rel="noopener">下载截图快捷指令</a></div><div class="shortcut-card"><h3>本机语音入口</h3><p class="helper">可放进苹果快捷指令小组件或用 Siri 打开。进入余记后长按说话，录音在本机识别；它不会在外部自动录音。</p><a class="secondary shortcut-link" href="${shortcutURL('voice', document.baseURI)}" download="Yujournal-Voice.shortcut" target="_blank" rel="noopener">下载语音快捷指令</a></div><div class="formula"><strong>安装步骤</strong><ol><li>下载 .shortcut 文件；若跳到 Safari，确认下载。</li><li>在“文件 → 下载项”打开它，用“快捷指令”添加。</li><li>截图指令安装后会出现在图片分享菜单；语音指令可加入快捷指令小组件。</li></ol></div><p class="helper">如果主屏幕入口不弹出下载面板，请<a href="install.html#shortcuts" target="_blank" rel="noopener">在 Safari 打开快捷指令安装页</a>。文件应以 .shortcut 结尾，不要保存成网页。系统添加操作需要你确认。</p><label class="toggle-row"><span>首页显示“接收快捷输入”</span><input id="quick-input-enabled" type="checkbox" ${state.preferences.shortcutsEnabled ? 'checked' : ''}></label><button class="secondary" style="width:100%" data-action="receiveQuickInput">接收已识别的截图文字</button><p class="helper">如果快捷指令打开了 Safari，而历史账本在主屏幕余记，请回到主屏幕余记点“接收快捷输入”。这个开关只管理余记的接收按钮。付款截图不会被后台监听；核对后才入账。</p>`,
     '快捷输入',
   );
 }
@@ -1228,7 +1311,14 @@ async function execute(action, el) {
       // A resource download is not a ledger mutation: do not hold the global action lock.
       void prepareVoiceUI();
       break;
+    case 'pauseVoice':
+      pauseVoiceDownload();
+      break;
     case 'clearVoice':
+      pauseVoiceDownload();
+      voiceDownloadProgress = null;
+      voiceDownloadError = '';
+      paintVoiceDownload();
       voiceCapture?.cancel();
       releaseVoice();
       await caches.delete(VOICE_CACHE);

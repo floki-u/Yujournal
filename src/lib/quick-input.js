@@ -13,5 +13,10 @@ export const shortcutFiles = {
 };
 export function shortcutURL(type, base) {
   if (!shortcutFiles[type]) throw Error('未知快捷指令。');
+  const app = new URL(base);
+  if (app.origin === 'https://floki-u.github.io' && app.pathname.startsWith('/Yujournal/'))
+    // These signed workflows are unchanged. Release assets supply an attachment
+    // filename, whereas GitHub Pages cannot configure that response header.
+    return 'https://github.com/floki-u/Yujournal/releases/download/v0.2.1/' + shortcutFiles[type];
   return new URL('shortcuts/' + shortcutFiles[type], base).href;
 }

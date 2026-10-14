@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 — 2026-10-14
+
+- Keep one voice-pack download running when closing the entry sheet or changing pages; add visible progress and explicit pause/continue controls.
+- Resume large resources from saved 2 MiB HTTP Range chunks. Merge and remove temporary chunks after completion; hosts without ranges fall back to replacing the whole file.
+- Show complete/partial speech resource storage separately and clear both without touching ledger data.
+- Constrain native date fields and grid columns, allow only vertical sheet scrolling, and focus the dialog heading initially while keeping keyboard button focus indicators.
+- Download signed shortcuts from attachment endpoints, preserve `.shortcut` filenames, and separate installation instructions from screenshot/voice usage.
+- Explain PWA installation, automatic shell updates and local cache behavior in a Chinese FAQ.
+
 ## 0.2.1 — 2026-10-14
 
 - Return uncached voice responses immediately; the optional downloader owns streaming and cache writes, so large model files show live progress.

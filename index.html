@@ -19,13 +19,20 @@
   </head>
   <body class="variant-c">
     <div id="app">
+      <div id="voice-download-bar" class="voice-download-bar" role="status" hidden>
+        <span id="voice-download-message"></span><button data-action="voice">查看</button
+        ><button id="voice-background-pause" data-action="pauseVoice">暂停</button
+        ><button id="voice-background-continue" data-action="prepareVoice" hidden>继续</button>
+      </div>
       <main id="content" aria-live="polite">
         <div class="empty"><p>正在打开本机账本…</p></div>
       </main>
       <nav id="navigation" aria-label="主导航"></nav>
       <div id="toast" role="status" hidden></div>
     </div>
-    <dialog id="sheet" class="sheet"><div id="sheet-content"></div></dialog>
+    <dialog id="sheet" class="sheet" aria-labelledby="sheet-title">
+      <div id="sheet-content"></div>
+    </dialog>
     <script src="src/features.js"></script>
     <script src="src/theme-studio.js"></script>
     <script src="src/views.js"></script>

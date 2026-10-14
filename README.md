@@ -14,7 +14,9 @@
 
 Yujournal is a personal bookkeeping PWA designed for iPhone. It opens as a standalone Home Screen web app, without the App Store, a paid Apple developer account, or recurring app re-signing. The interface currently uses Simplified Chinese.
 
-**0.2.1 is an early release.** Automated tests and selected desktop browser flows have passed; remaining device checks are documented in [TESTING.md](docs/TESTING.md).
+**0.2.2 is an early release.** Automated tests and selected desktop browser flows have passed; remaining device checks are documented in [TESTING.md](docs/TESTING.md).
+
+See the [Chinese FAQ](docs/FAQ.zh-CN.md) for PWA installation, automatic updates, resumable voice downloads and local cache cleanup.
 
 ## Features
 

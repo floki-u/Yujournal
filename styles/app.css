@@ -2,6 +2,69 @@
 .field select,
 .field textarea {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.field,
+.field-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sheet input[type='date'] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  text-align: left;
+}
+.sheet input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
+}
+.sheet input[type='date']::-webkit-datetime-edit {
+  padding: 0;
+  min-width: 0;
+}
+.sheet {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+}
+.sheet-inner,
+#sheet-content {
+  min-width: 0;
+  max-width: 100%;
+}
+.sheet-head h2 {
+  min-width: 0;
+}
+.sheet-head h2:focus {
+  outline: none;
+}
+.sheet-head .icon-button {
+  flex-shrink: 0;
+}
+.shortcut-card {
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.shortcut-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.formula ol {
+  padding-left: 20px;
+}
+.formula li + li {
+  margin-top: 8px;
 }
 .helper a,
 .formula a {
@@ -350,6 +413,30 @@ body[aria-busy='true'] #sheet button[type='submit'] {
 }
 .voice-progress[hidden] {
   display: none;
+}
+.voice-download-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  background: var(--sage);
+  color: var(--ink);
+}
+.voice-download-bar[hidden],
+#pause-voice[hidden] {
+  display: none;
+}
+.voice-download-bar span {
+  flex: 1;
+  min-width: 0;
+}
+.voice-download-bar button {
+  min-height: 36px;
+  flex-shrink: 0;
+  color: var(--leaf);
+  text-decoration: underline;
 }
 .entry-fallback {
   text-align: center;

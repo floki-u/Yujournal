@@ -15,6 +15,8 @@ function downloadUI() {
     busy: false,
     entry: { mode: 'voice' },
     voiceDownload: null,
+    voiceDownloadProgress: null,
+    voiceDownloadError: '',
     voiceCapture: null,
     voiceCheckSequence: 0,
     ocrSequence: 0,
@@ -23,6 +25,7 @@ function downloadUI() {
     importFile: null,
     screen: 'home',
     AbortController,
+    esc: String,
     document: {
       querySelector: () => button,
       addEventListener: (_, handler) => {
@@ -39,14 +42,19 @@ function downloadUI() {
     error() {},
     releaseOCR() {},
     revoke() {},
-    sheet: { close() {} },
+    sheet: {
+      open: true,
+      close() {
+        this.open = false;
+      },
+    },
     entryUI() {},
     go: (screen) => {
       scope.screen = screen;
     },
   };
   vm.runInNewContext(
-    section('async function prepareVoiceUI(', 'let profilePictureURL') +
+    section('function paintVoiceDownload(', 'let profilePictureURL') +
       section('function close(', 'function openSheet(') +
       section('function entryStart(', 'function tabs(') +
       section('async function execute(', "document.addEventListener('pointerdown'") +
@@ -90,18 +98,34 @@ test('closing a still-pending voice download leaves page navigation responsive',
     await pending;
   }
 });
-test('a cancelled download cannot repaint or unlock its replacement when it settles late', async () => {
+test('closing or changing entry mode keeps one preparation running until explicitly paused', async () => {
   const h = downloadUI();
   await h.click('prepareVoice');
+  await h.click('entryMode', 'text');
+  assert.equal(h.jobs[0].signal.aborted, false);
+  await h.click('close');
+  await h.click('entryMode', 'voice');
+  await h.click('prepareVoice');
+  assert.equal(h.jobs.length, 1);
+  await h.click('pauseVoice');
+  assert.equal(h.jobs[0].signal.aborted, true);
+  h.finish();
+  await new Promise((resolve) => setImmediate(resolve));
+});
+test('a paused download cannot repaint or unlock its replacement when it settles late', async () => {
+  const h = downloadUI();
+  await h.click('prepareVoice');
+  await h.click('pauseVoice');
   await h.click('close');
   assert.equal(h.jobs[0].signal.aborted, true);
   await h.click('entryMode', 'voice');
   await h.click('prepareVoice');
   const active = h.scope.voiceDownload;
+  const messages = h.messages.slice();
   h.jobs[0].progress({ phase: 'downloading', percent: 80, loaded: 80, total: 100 });
   h.finish(0);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(h.messages, []);
+  assert.deepEqual(h.messages, messages);
   assert.equal(h.scope.voiceDownload, active);
   h.finish(1);
   await new Promise((resolve) => setImmediate(resolve));
@@ -120,8 +144,11 @@ test('the initial readiness check cannot overwrite live download progress', asyn
   const scope = {
     entry: { mode: 'voice' },
     voiceDownload: null,
+    voiceDownloadProgress: null,
+    voiceDownloadError: '',
     voiceCheckSequence: 0,
     AbortController,
+    sheet: { open: true },
     document: { querySelector: (selector) => nodes.get(selector) },
     tabs: () => '',
     icon: () => '',

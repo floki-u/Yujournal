@@ -34,6 +34,7 @@ async function downloadHarness(t, { short = false } = {}) {
   });
   globalThis.caches = {
     open: async () => ({
+      keys: async () => [],
       match: async (url) => entries.get(name(url))?.clone(),
       put: async (url, response) => {
         const bytes = await response.arrayBuffer();

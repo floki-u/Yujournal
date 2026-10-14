@@ -44,7 +44,169 @@ export async function voiceReady() {
     cache = await caches.open(VOICE_CACHE);
   for (const f of meta.files.filter((f) => !f.path.startsWith('licenses/')))
     if (!(await cache.match(new URL(f.path, base)))) return false;
+  // A process can stop between the final model write and chunk cleanup.
+  // Drop those redundant chunks when a complete pack is next opened.
+  for (const key of await cache.keys()) {
+    const url = new URL(key.url);
+    if (!url.searchParams.has('yujournal-part')) continue;
+    url.search = '';
+    if (await cache.match(url)) await cache.delete(key);
+  }
   return true;
+}
+export async function voiceStorage() {
+  const meta = await voiceManifest(),
+    cache = await caches.open(VOICE_CACHE),
+    files = meta.files.filter((file) => !file.path.startsWith('licenses/'));
+  let completeBytes = 0,
+    partialBytes = 0,
+    parts = 0,
+    completed = 0;
+  for (const file of files)
+    if (await cache.match(new URL(file.path, base))) {
+      completeBytes += file.bytes;
+      completed++;
+    }
+  for (const key of await cache.keys()) {
+    if (!new URL(key.url).searchParams.has('yujournal-part')) continue;
+    const response = await cache.match(key);
+    partialBytes += Number(response?.headers.get('X-Yujournal-Part-Bytes')) || 0;
+    parts++;
+  }
+  return {
+    completeBytes,
+    partialBytes,
+    parts,
+    completed,
+    files: files.length,
+    total: files.reduce((sum, file) => sum + file.bytes, 0),
+  };
+}
+const PART_BYTES = 2 * 1024 * 1024;
+function partURL(file, index) {
+  const url = new URL(file.path, base);
+  url.searchParams.set('yujournal-part', `${file.sha256}:${index}`);
+  return url;
+}
+async function clearParts(cache, file, signal) {
+  if (file.bytes < PART_BYTES * 2) return;
+  await waitFor(
+    Promise.all(
+      Array.from({ length: Math.ceil(file.bytes / PART_BYTES) }, (_, index) =>
+        cache.delete(partURL(file, index)),
+      ),
+    ),
+    deadline(signal, 15000),
+  );
+}
+async function saveVoiceResponse(
+  cache,
+  url,
+  response,
+  expected,
+  addBytes,
+  signal,
+  partial = false,
+  onSaving = () => {},
+) {
+  if (
+    !response.ok ||
+    response.redirected ||
+    response.headers.get('content-type')?.includes('text/html')
+  )
+    throw Error('语音包下载失败，已有资源保留，可重试。');
+  if (!response.body) throw Error('语音资源为空，请重试下载。');
+  let bytes = 0;
+  const stream = response.body.pipeThrough(
+    new TransformStream({
+      transform(chunk, controller) {
+        bytes += chunk.byteLength;
+        addBytes(chunk.byteLength);
+        controller.enqueue(chunk);
+      },
+      flush() {
+        if (bytes !== expected) throw Error('语音资源未下载完整，已完成的文件和片段保留，请重试。');
+        onSaving();
+      },
+    }),
+    { signal },
+  );
+  const headers = new Headers(response.headers);
+  for (const name of ['Content-Encoding', 'Content-Length', 'Content-Range']) headers.delete(name);
+  if (partial) headers.set('X-Yujournal-Part-Bytes', String(expected));
+  await waitFor(cache.put(url, new Response(stream, { headers })), signal);
+  return headers;
+}
+async function downloadInParts(cache, file, addBytes, report, signal) {
+  const url = new URL(file.path, base),
+    count = Math.ceil(file.bytes / PART_BYTES);
+  let accounted = 0,
+    headers = new Headers({ 'Content-Type': 'application/octet-stream' });
+  const add = (bytes) => {
+    accounted += bytes;
+    addBytes(bytes);
+  };
+  for (let index = 0; index < count; index++) {
+    signal?.throwIfAborted();
+    const start = index * PART_BYTES,
+      end = Math.min(file.bytes, start + PART_BYTES) - 1,
+      expected = end - start + 1,
+      key = partURL(file, index),
+      limit = deadline(signal, 120000),
+      cached = await waitFor(cache.match(key), limit);
+    if (cached && Number(cached.headers.get('X-Yujournal-Part-Bytes')) === expected) {
+      headers = new Headers(cached.headers);
+      add(expected);
+      report('cached', true);
+      continue;
+    }
+    report('connecting', true);
+    const response = await waitFor(
+      fetch(url, { cache: 'no-store', signal: limit, headers: { Range: `bytes=${start}-${end}` } }),
+      limit,
+    );
+    if (response.status === 200) {
+      // Self-hosted servers may ignore Range. Replace the whole resource once.
+      add(-accounted);
+      await saveVoiceResponse(cache, url, response, file.bytes, add, limit, false, () =>
+        report('saving', true),
+      );
+      await clearParts(cache, file, signal);
+      return;
+    }
+    if (
+      response.status !== 206 ||
+      response.headers.get('Content-Range') !== `bytes ${start}-${end}/${file.bytes}`
+    )
+      throw Error('语音资源分段下载暂不可用，已有片段保留，请稍后重试。');
+    headers = await saveVoiceResponse(cache, key, response, expected, add, limit, true);
+    report('partial', true);
+  }
+  report('saving', true);
+  headers.delete('X-Yujournal-Part-Bytes');
+  let index = 0;
+  const stream = new ReadableStream({
+    async pull(controller) {
+      try {
+        signal?.throwIfAborted();
+        if (index === count) {
+          controller.close();
+          return;
+        }
+        const response = await waitFor(cache.match(partURL(file, index)), signal);
+        if (!response) throw Error('语音资源片段缺失，请继续下载。');
+        const bytes = await waitFor(response.arrayBuffer(), signal);
+        if (bytes.byteLength !== Math.min(PART_BYTES, file.bytes - index * PART_BYTES))
+          throw Error('语音资源片段不完整，请重新下载。');
+        index++;
+        controller.enqueue(new Uint8Array(bytes));
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+  });
+  await waitFor(cache.put(url, new Response(stream, { headers })), deadline(signal, 120000));
+  await clearParts(cache, file, signal);
 }
 export async function prepareVoice(progress = () => {}, signal = null) {
   if (!('serviceWorker' in navigator)) throw Error('请在支持离线缓存的 Safari 中打开。');
@@ -80,9 +242,25 @@ export async function prepareVoice(progress = () => {}, signal = null) {
     const url = new URL(file.path, base);
     report('checking', true);
     if (await waitFor(cache.match(url), limit)) {
+      await clearParts(cache, file, signal);
       loaded += file.bytes;
       completed++;
       report('cached', true);
+      continue;
+    }
+    if (file.bytes >= PART_BYTES * 2 && file.sha256) {
+      await downloadInParts(
+        cache,
+        file,
+        (bytes) => {
+          loaded += bytes;
+          report('downloading');
+        },
+        report,
+        signal,
+      );
+      completed++;
+      report('saved', true);
       continue;
     }
     report('connecting', true);
@@ -93,33 +271,19 @@ export async function prepareVoice(progress = () => {}, signal = null) {
       }),
       limit,
     );
-    if (
-      !response.ok ||
-      response.redirected ||
-      response.headers.get('content-type')?.includes('text/html')
-    )
-      throw Error('语音包下载失败，已有资源保留，可重试。');
-    if (!response.body) throw Error('语音资源为空，请重试下载。');
-    let bytes = 0;
-    const stream = response.body.pipeThrough(
-      new TransformStream({
-        transform(chunk, controller) {
-          bytes += chunk.byteLength;
-          loaded += chunk.byteLength;
-          report('downloading');
-          controller.enqueue(chunk);
-        },
-        flush() {
-          if (bytes !== file.bytes) throw Error('语音资源未下载完整，已完成的文件保留，请重试。');
-          report('saving', true);
-        },
-      }),
-      { signal: limit },
+    await saveVoiceResponse(
+      cache,
+      url,
+      response,
+      file.bytes,
+      (bytes) => {
+        loaded += bytes;
+        report('downloading');
+      },
+      limit,
+      false,
+      () => report('saving', true),
     );
-    const headers = new Headers(response.headers);
-    headers.delete('Content-Encoding');
-    headers.delete('Content-Length');
-    await waitFor(cache.put(url, new Response(stream, { headers })), limit);
     completed++;
     report('saved', true);
   }

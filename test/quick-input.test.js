@@ -30,3 +30,13 @@ test('installable shortcuts are Apple-signed and templates never upload screensh
   );
   assert.match(screenshot, /<key>WFLocalOnly<\/key>\s*<true\/>/);
 });
+test('public shortcut installers use attachment downloads instead of navigating to a Pages binary', () => {
+  assert.equal(
+    shortcutURL('screenshot', 'https://floki-u.github.io/Yujournal/'),
+    'https://github.com/floki-u/Yujournal/releases/download/v0.2.1/Yujournal-Screenshot.shortcut',
+  );
+  assert.equal(
+    shortcutURL('voice', 'https://floki-u.github.io/Yujournal/'),
+    'https://github.com/floki-u/Yujournal/releases/download/v0.2.1/Yujournal-Voice.shortcut',
+  );
+});
