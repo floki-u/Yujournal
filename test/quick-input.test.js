@@ -30,13 +30,91 @@ test('installable shortcuts are Apple-signed and templates never upload screensh
   );
   assert.match(screenshot, /<key>WFLocalOnly<\/key>\s*<true\/>/);
 });
-test('public shortcut installers use attachment downloads instead of navigating to a Pages binary', () => {
+test('shortcut installers stay on the app origin instead of requiring GitHub attachment redirects', () => {
   assert.equal(
     shortcutURL('screenshot', 'https://floki-u.github.io/Yujournal/'),
-    'https://github.com/floki-u/Yujournal/releases/download/v0.2.1/Yujournal-Screenshot.shortcut',
+    'https://floki-u.github.io/Yujournal/shortcuts/Yujournal-Screenshot.shortcut',
   );
   assert.equal(
     shortcutURL('voice', 'https://floki-u.github.io/Yujournal/'),
-    'https://github.com/floki-u/Yujournal/releases/download/v0.2.1/Yujournal-Voice.shortcut',
+    'https://floki-u.github.io/Yujournal/shortcuts/Yujournal-Voice.shortcut',
   );
+});
+test('shortcut preparation fetches and verifies the same-origin signed file once', async (t) => {
+  const module = await import('../src/lib/quick-input.js');
+  assert.equal(typeof module.prepareShortcut, 'function');
+  const original = globalThis.fetch,
+    requests = [];
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  const base = 'https://test.yujournal.local/ledger/';
+  for (const [type, name] of Object.entries(module.shortcutFiles)) {
+    const bytes = await readFile(new URL('../shortcuts/' + name, import.meta.url));
+    globalThis.fetch = async (url) => {
+      requests.push(String(url));
+      return new Response(bytes);
+    };
+    const [a, b] = await Promise.all([
+      module.prepareShortcut(type, base),
+      module.prepareShortcut(type, base),
+    ]);
+    assert.equal(a, b);
+    assert.equal(a.name, name);
+    assert.deepEqual(new Uint8Array(await a.arrayBuffer()), new Uint8Array(bytes));
+  }
+  assert.deepEqual(requests, [
+    'https://test.yujournal.local/ledger/shortcuts/Yujournal-Screenshot.shortcut',
+    'https://test.yujournal.local/ledger/shortcuts/Yujournal-Voice.shortcut',
+  ]);
+});
+test('prepared-file sharing invokes the native sheet before any asynchronous work', async (t) => {
+  const module = await import('../src/lib/quick-input.js');
+  assert.equal(typeof module.shareShortcut, 'function');
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => {
+    Object.defineProperty(globalThis, 'navigator', original);
+  });
+  let opened = false;
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      canShare: () => true,
+      share: async () => {
+        opened = true;
+      },
+    },
+  });
+  const pending = module.shareShortcut(
+    new File(['AEA1'], 'test.shortcut', { type: 'application/octet-stream' }),
+  );
+  assert.equal(opened, true, 'fetching after a tap would lose iOS transient activation');
+  assert.equal(await pending, true);
+});
+test('HTML and corrupted downloads cannot become installable shortcut files', async (t) => {
+  const { prepareShortcut } = await import('../src/lib/quick-input.js');
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+  });
+  globalThis.fetch = async () =>
+    new Response('<html>unavailable</html>', { headers: { 'Content-Type': 'text/html' } });
+  await assert.rejects(prepareShortcut('voice', 'https://invalid.yujournal.local/'), /暂不可用/);
+  globalThis.fetch = async () => new Response('AEA1corrupted');
+  await assert.rejects(prepareShortcut('voice', 'https://invalid.yujournal.local/'), /校验失败/);
+});
+test('cancelling the native shortcut share stays cancelled rather than starting another action', async (t) => {
+  const { shareShortcut } = await import('../src/lib/quick-input.js');
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => Object.defineProperty(globalThis, 'navigator', original));
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      canShare: () => true,
+      share: async () => {
+        throw new DOMException('cancelled', 'AbortError');
+      },
+    },
+  });
+  await assert.rejects(shareShortcut(new File(['AEA1'], 'test.shortcut')), { name: 'AbortError' });
 });

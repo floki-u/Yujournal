@@ -15,7 +15,7 @@ import {
   releaseVoice,
   VOICE_CACHE,
 } from './lib/voice.js';
-import { quickText, shortcutURL } from './lib/quick-input.js';
+import { quickText, mountShortcutInstallers } from './lib/quick-input.js';
 import { paths } from './icons.js';
 const F = window.Yujournal,
   V = window.YujournalViews,
@@ -1222,9 +1222,10 @@ function install() {
 }
 function shortcuts() {
   openSheet(
-    `<p class="helper">只安装一次。截图指令处理图片里的文字；语音指令快速打开余记的长按说话入口。</p><div class="shortcut-card"><h3>截图记账</h3><p class="helper">在照片或截图预览点分享，运行“余记 · 截图记账”，再回余记核对金额，一次确认。</p><a class="primary shortcut-link" href="${shortcutURL('screenshot', document.baseURI)}" download="Yujournal-Screenshot.shortcut" target="_blank" rel="noopener">下载截图快捷指令</a></div><div class="shortcut-card"><h3>本机语音入口</h3><p class="helper">可放进苹果快捷指令小组件或用 Siri 打开。进入余记后长按说话，录音在本机识别；它不会在外部自动录音。</p><a class="secondary shortcut-link" href="${shortcutURL('voice', document.baseURI)}" download="Yujournal-Voice.shortcut" target="_blank" rel="noopener">下载语音快捷指令</a></div><div class="formula"><strong>安装步骤</strong><ol><li>下载 .shortcut 文件；若跳到 Safari，确认下载。</li><li>在“文件 → 下载项”打开它，用“快捷指令”添加。</li><li>截图指令安装后会出现在图片分享菜单；语音指令可加入快捷指令小组件。</li></ol></div><p class="helper">如果主屏幕入口不弹出下载面板，请<a href="install.html#shortcuts" target="_blank" rel="noopener">在 Safari 打开快捷指令安装页</a>。文件应以 .shortcut 结尾，不要保存成网页。系统添加操作需要你确认。</p><label class="toggle-row"><span>首页显示“接收快捷输入”</span><input id="quick-input-enabled" type="checkbox" ${state.preferences.shortcutsEnabled ? 'checked' : ''}></label><button class="secondary" style="width:100%" data-action="receiveQuickInput">接收已识别的截图文字</button><p class="helper">如果快捷指令打开了 Safari，而历史账本在主屏幕余记，请回到主屏幕余记点“接收快捷输入”。这个开关只管理余记的接收按钮。付款截图不会被后台监听；核对后才入账。</p>`,
+    `<p class="helper">只安装一次。文件从余记本机缓存或当前网站准备，点击后无需跳转 GitHub 下载页。</p><div class="shortcut-card"><h3>截图记账</h3><p class="helper">在照片或截图预览点分享，运行“余记 · 截图记账”，再回余记核对金额，一次确认。</p><button class="primary shortcut-link" data-shortcut="screenshot">安装 / 分享截图指令</button><button class="text-button shortcut-link" data-shortcut="screenshot" data-shortcut-method="save">保存截图指令到文件</button><p class="helper" data-shortcut-status="screenshot" role="status"></p></div><div class="shortcut-card"><h3>本机语音入口</h3><p class="helper">可放进苹果快捷指令小组件或用 Siri 打开。进入余记后长按说话，录音在本机识别。</p><button class="secondary shortcut-link" data-shortcut="voice">安装 / 分享语音指令</button><button class="text-button shortcut-link" data-shortcut="voice" data-shortcut-method="save">保存语音指令到文件</button><p class="helper" data-shortcut-status="voice" role="status"></p></div><div class="formula"><strong>安装步骤</strong><ol><li>点“安装 / 分享”，在系统面板选“存储到文件”；若面板提供“快捷指令”，可直接选择。</li><li>在“文件”里打开 .shortcut 文件，添加到系统快捷指令。也可直接点上面的“保存到文件”。</li><li>截图指令之后从图片分享菜单运行；语音指令可加入快捷指令小组件。</li></ol></div><p class="helper">主屏幕入口若不支持保存，可<a href="install.html#shortcuts" target="_blank" rel="noopener">在 Safari 打开安装页</a>再保存。首次添加需要系统确认，不会自动安装。</p><label class="toggle-row"><span>首页显示“接收快捷输入”</span><input id="quick-input-enabled" type="checkbox" ${state.preferences.shortcutsEnabled ? 'checked' : ''}></label><button class="secondary" style="width:100%" data-action="receiveQuickInput">接收已识别的截图文字</button><p class="helper">如果快捷指令打开了 Safari，而历史账本在主屏幕余记，请回到主屏幕余记点“接收快捷输入”。付款截图不会被后台监听；核对后才入账。</p>`,
     '快捷输入',
   );
+  void mountShortcutInstallers(document.querySelector('#sheet-content'));
 }
 function quickInputUI() {
   openSheet(

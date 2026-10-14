@@ -1,6 +1,6 @@
 {
   "name": "yujournal",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "An offline-first, local-only personal ledger PWA for iPhone.",
   "license": "MIT",
   "private": true,

@@ -48,3 +48,11 @@ At a 393×852 browser viewport, manual, batch and recurring date inputs stayed i
 A throttled local server served the real voice assets with HTTP Range: closing the sheet and navigating to My kept downloading, manual pause retained 12 MiB in six chunks, reload preserved them, and the next request resumed at byte 12582912. Completion showed 97.9 MiB of full resources and zero partial chunks. The signature-preserving shortcut link downloaded an actual `.shortcut` file instead of opening a document page. The public attachment headers and Range support were also checked over HTTP.
 
 iPhone-specific remaining checks: native date control rendering, Safari/Files importing the signed shortcut and its screenshot handoff, and iOS suspension/resumption behavior. A desktop download is not proof of those OS flows.
+
+## v0.2.3 shortcut connectivity
+
+The previous installer required a GitHub release URL followed by an attachment CDN redirect. Both files were valid on the desktop, but the reported phone flow stalled after Safari opened. The new path prepares and verifies same-origin files before the tap, then shares or saves those local files without navigating to an external attachment host.
+
+Tests cover same-origin URLs, both signed file digests, shared preparation, immediate native-share invocation, rejected HTML/corrupt data, and share cancellation. The in-app browser exercised both save buttons: filenames retained `.shortcut`, exact byte counts and SHA-256 matched source, and the page stayed on its original URL. The app sheet and standalone installation page both showed ready states.
+
+This verifies local file delivery, not iPhone OS import. iOS native share targets and adding the signed workflow still require physical acceptance.

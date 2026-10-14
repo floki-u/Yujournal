@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 — 2026-10-14
+
+- Remove GitHub Release/CDN navigation from shortcut installation. Prepare and verify the signed files on the app origin, then share or save local files from the user's tap.
+- Cache the two small installers with the app shell, reuse preparation, and show ready/retry/cancel states.
+- Keep iOS native sharing within the tap's activation window; provide an explicit save-file alternative without displaying binary documents.
+
 ## 0.2.2 — 2026-10-14
 
 - Keep one voice-pack download running when closing the entry sheet or changing pages; add visible progress and explicit pause/continue controls.

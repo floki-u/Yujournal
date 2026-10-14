@@ -31,6 +31,8 @@ const FILES = [
   'src/lib/voice.js',
   'src/lib/voice-worker.js',
   'src/lib/quick-input.js',
+  'shortcuts/Yujournal-Screenshot.shortcut',
+  'shortcuts/Yujournal-Voice.shortcut',
 ];
 
 function valid(r) {

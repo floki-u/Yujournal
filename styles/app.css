@@ -60,6 +60,9 @@
   margin: 0;
   font-size: 16px;
 }
+.shortcut-card > button {
+  width: 100%;
+}
 .formula ol {
   padding-left: 20px;
 }
